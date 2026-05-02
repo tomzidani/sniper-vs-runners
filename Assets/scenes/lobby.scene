@@ -6,7 +6,7 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Main Camera",
-      "Position": "-300,0,-64",
+      "Position": "-300,0,32",
       "Rotation": "0,0,0,1",
       "Scale": "1,1,1",
       "Tags": "",
@@ -262,6 +262,75 @@
           "Static": true,
           "Surface": null,
           "SurfaceVelocity": "0,0,0"
+        }
+      ],
+      "Children": []
+    },
+    {
+      "__guid": "20500dd6-7913-43d1-8f8c-d99a767aa0e2",
+      "__version": 2,
+      "Flags": 0,
+      "Name": "Game",
+      "Position": "0,0,0",
+      "Rotation": "0,0,0,1",
+      "Scale": "1,1,1",
+      "Tags": "",
+      "Enabled": true,
+      "NetworkMode": 2,
+      "NetworkFlags": 0,
+      "NetworkOrphaned": 0,
+      "NetworkTransmit": true,
+      "OwnerTransfer": 1,
+      "Components": [
+        {
+          "__type": "SniperVsRunners.Components.Game.GameComponent",
+          "__guid": "66225fe5-47ab-4288-b0bd-2e4215f35353",
+          "__enabled": true,
+          "Flags": 0,
+          "BeginMatchWhenSceneStarts": true,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "PlayerPrefab": {
+            "_type": "gameobject",
+            "prefab": "prefabs/player/player.prefab"
+          },
+          "SpawnTransformFallback": null
+        }
+      ],
+      "Children": []
+    },
+    {
+      "__guid": "2ce90ca6-5411-4baf-9c74-0457902b6300",
+      "__version": 2,
+      "Flags": 0,
+      "Name": "Spawn",
+      "Position": "0,0,0",
+      "Rotation": "0,0,0,1",
+      "Scale": "1,1,1",
+      "Tags": "",
+      "Enabled": true,
+      "NetworkMode": 2,
+      "NetworkFlags": 0,
+      "NetworkOrphaned": 0,
+      "NetworkTransmit": true,
+      "OwnerTransfer": 1,
+      "Components": [
+        {
+          "__type": "Sandbox.SpawnPoint",
+          "__guid": "187625d4-a371-4c6f-bd7a-11d6ef27219d",
+          "__enabled": true,
+          "Flags": 0,
+          "Color": "0.8902,0.31765,0.05098,1",
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null
         }
       ],
       "Children": []

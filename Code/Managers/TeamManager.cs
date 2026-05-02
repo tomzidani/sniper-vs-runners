@@ -41,7 +41,7 @@ public class TeamManager
         return TeamTypes.Runners;
     }
 
-    void RemovePlayerFromAllTeams(PlayerEntity player)
+    public void RemovePlayerFromAllTeams(PlayerEntity player)
     {
         foreach (var team in _teams)
             team.RemovePlayer(player);

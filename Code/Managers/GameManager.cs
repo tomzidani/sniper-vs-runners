@@ -1,6 +1,7 @@
 namespace SniperVsRunners.Managers;
 
 using SniperVsRunners.Entities;
+using SniperVsRunners.Features.Spawning;
 
 public class GameManager
 {
@@ -14,6 +15,7 @@ public class GameManager
 
     protected PlayerManager _playerManager;
     protected TeamManager _teamManager;
+    SpawnService _spawnService;
 
     public GameManager()
     {
@@ -32,6 +34,11 @@ public class GameManager
             Instance = null;
     }
 
+    public void ConfigureSpawning(GameObject playerPrefab, GameObject spawnTransformFallback)
+    {
+        _spawnService = new SpawnService(playerPrefab, spawnTransformFallback, () => Phase);
+    }
+
     public void Initialize()
     {
         if (_sessionInitialized)
@@ -45,17 +52,49 @@ public class GameManager
     public void BeginMatch()
     {
         Phase = GamePhase.Playing;
+        RespawnEveryoneForCurrentRules();
     }
 
     public void ReturnToLobby()
     {
         Phase = GamePhase.Lobby;
+        RespawnEveryoneForCurrentRules();
+    }
+
+    void RespawnEveryoneForCurrentRules()
+    {
+        if (_spawnService == null)
+            return;
+
+        foreach (var player in _playerManager.Players.ToArray())
+        {
+            var existing = player.Pawn;
+            if (existing.IsValid())
+                existing.Destroy();
+
+            player.Pawn = null;
+            _spawnService.TrySpawnPawn(player);
+        }
     }
 
     public void OnPlayerConnected(Connection connection)
     {
         var player = _playerManager.CreatePlayer(connection);
-
         _teamManager.AssignPlayerToTeam(player);
+        _spawnService?.TrySpawnPawn(player);
+    }
+
+    public void OnPlayerDisconnected(Connection connection)
+    {
+        var player = _playerManager.FindByConnection(connection);
+        if (player == null)
+            return;
+
+        var pawn = player.Pawn;
+        if (pawn.IsValid())
+            pawn.Destroy();
+
+        _teamManager.RemovePlayerFromAllTeams(player);
+        _playerManager.RemovePlayer(player);
     }
 }

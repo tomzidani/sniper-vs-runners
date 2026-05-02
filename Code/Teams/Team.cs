@@ -19,11 +19,13 @@ public abstract class Team
         if (Players.Any(p => p.Connection.Id == player.Connection.Id))
             return;
 
+        player.CurrentTeam = Type;
         Players.Add(player);
     }
 
     public void RemovePlayer(PlayerEntity player)
     {
-        Players.RemoveAll(p => p.Connection.Id == player.Connection.Id);
+        if (Players.RemoveAll(p => p.Connection.Id == player.Connection.Id) > 0)
+            player.CurrentTeam = TeamTypes.Spectators;
     }
 }
