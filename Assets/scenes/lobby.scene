@@ -269,14 +269,14 @@
     {
       "__guid": "20500dd6-7913-43d1-8f8c-d99a767aa0e2",
       "__version": 2,
-      "Flags": 0,
+      "Flags": 32,
       "Name": "Game",
       "Position": "0,0,0",
       "Rotation": "0,0,0,1",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
-      "NetworkMode": 2,
+      "NetworkMode": 1,
       "NetworkFlags": 0,
       "NetworkOrphaned": 0,
       "NetworkTransmit": true,
@@ -287,7 +287,8 @@
           "__guid": "66225fe5-47ab-4288-b0bd-2e4215f35353",
           "__enabled": true,
           "Flags": 0,
-          "BeginMatchWhenSceneStarts": true,
+          "BeginMatchWhenSceneStarts": false,
+          "CreateLobbyIfNone": true,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -299,6 +300,51 @@
             "prefab": "prefabs/player/player.prefab"
           },
           "SpawnTransformFallback": null
+        },
+        {
+          "__type": "SniperVsRunners.Features.GameFlow.MatchFlowComponent",
+          "__guid": "a1c2e3f4-5678-90ab-cdef-1234567890ab",
+          "__enabled": true,
+          "Flags": 0,
+          "CountdownDurationSeconds": 5,
+          "GameplayScenePath": "scenes/play.scene",
+          "MinPlayersToStart": 2,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null
+        },
+        {
+          "__type": "Sandbox.ScreenPanel",
+          "__guid": "c3e4a5b6-7890-12cd-ef01-3456789012cd",
+          "__enabled": true,
+          "Flags": 0,
+          "AutoScreenScale": true,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "Opacity": 1,
+          "Scale": 1,
+          "ScaleStrategy": "FollowDesktopScaling",
+          "TargetCamera": null,
+          "ZIndex": 10000
+        },
+        {
+          "__type": "SniperVsRunners.Features.Hud.MatchStatusHud",
+          "__guid": "d4f5b6c7-8901-23de-f012-4567890123de",
+          "__enabled": true,
+          "Flags": 0,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null
         }
       ],
       "Children": []
@@ -331,6 +377,19 @@
           "OnComponentFixedUpdate": null,
           "OnComponentStart": null,
           "OnComponentUpdate": null
+        },
+        {
+          "__type": "SniperVsRunners.Features.Spawning.TeamSpawnPin",
+          "__guid": "e5f6a7b8-9012-34ef-0123-5678901234ef",
+          "__enabled": true,
+          "Flags": 0,
+          "Audience": "Lobby",
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null
         }
       ],
       "Children": []
@@ -356,13 +415,18 @@
       "CustomBounds": false
     },
     "GameObjectSystems": {
+      "Sandbox.MovieMaker.MovieRecorderSystem": {
+        "DisableClientRecording": false
+      },
       "Sandbox.SelectionSetsSystem": {
         "Data": {
           "SelectionSets": []
         }
       },
-      "Sandbox.MovieMaker.MovieRecorderSystem": {
-        "DisableClientRecording": false
+      "Sandbox.Clutter.ClutterGridSystem": {
+        "Storage": {
+          "$blob": "3a4cffe0-108f-4bca-ab1c-d751d6cf91ca"
+        }
       }
     }
   },

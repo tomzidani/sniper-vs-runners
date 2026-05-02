@@ -11,6 +11,8 @@ public class GameManager
 
     public bool IsGameStarted => Phase == GamePhase.Playing;
 
+    public int PlayerCount => _playerManager?.Players.Count ?? 0;
+
     bool _sessionInitialized;
 
     protected PlayerManager _playerManager;
@@ -79,6 +81,11 @@ public class GameManager
 
     public void OnPlayerConnected(Connection connection)
     {
+        // OnActive (host-only) peut se rappeler après un ChangeScene (ex. lobby → play) : ne pas
+        // recréer un PlayerEntity ni respawner, sinon doublon de pawn pour la même connexion.
+        if (_playerManager.FindByConnection(connection) != null)
+            return;
+
         var player = _playerManager.CreatePlayer(connection);
         _teamManager.AssignPlayerToTeam(player);
         _spawnService?.TrySpawnPawn(player);

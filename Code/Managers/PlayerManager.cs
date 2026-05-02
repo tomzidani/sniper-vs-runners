@@ -10,6 +10,10 @@ public class PlayerManager
 
     public PlayerEntity CreatePlayer(Connection connection)
     {
+        var existing = FindByConnection(connection);
+        if (existing != null)
+            return existing;
+
         var player = new PlayerEntity { Connection = connection };
         _players.Add(player);
         return player;

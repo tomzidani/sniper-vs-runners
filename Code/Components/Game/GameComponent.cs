@@ -2,6 +2,7 @@ namespace SniperVsRunners.Components.Game;
 
 using System.Threading.Tasks;
 using Sandbox;
+using SniperVsRunners.Features.GameFlow;
 using SniperVsRunners.Managers;
 
 public class GameComponent : Component, Component.INetworkListener
@@ -69,7 +70,7 @@ public class GameComponent : Component, Component.INetworkListener
 
     protected override void OnStart()
     {
-        if (BeginMatchWhenSceneStarts)
+        if (BeginMatchWhenSceneStarts && GameObject.Components.Get<MatchFlowComponent>() == null)
             _ = DeferBeginMatchAfterConnections();
     }
 
