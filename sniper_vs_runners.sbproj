@@ -17,12 +17,13 @@
     "GameNetworkType": "Multiplayer",
     "MapSelect": "Unrestricted",
     "MapList": [
-      "facepunch.flatgrass"
+      "facepunch.flatgrass",
+      "scenes/dev_quick.scene"
     ],
     "RankType": "None",
     "PerMapRanking": false,
     "LeaderboardType": "None",
     "CsProjName": "",
-    "StartupScene": "scenes/lobby.scene"
+    "StartupScene": "scenes/dev_quick.scene"
   }
 }

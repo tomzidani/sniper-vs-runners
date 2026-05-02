@@ -2,6 +2,10 @@ namespace SniperVsRunners.Features.Spawning;
 
 using System;
 using SniperVsRunners.Entities;
+using SniperVsRunners.Features.Combat;
+using SniperVsRunners.Features.Hud;
+using SniperVsRunners.Features.Vitality;
+using SniperVsRunners.Features.Weapons;
 using SniperVsRunners.Managers;
 using SniperVsRunners.Teams;
 
@@ -36,7 +40,25 @@ public sealed class SpawnService
 
         startTransform = startTransform.WithScale(1f);
         var pawn = _playerPrefab.Clone(startTransform, name: $"Player - {player.Connection.DisplayName}");
+
+        var combatInfo = pawn.Components.GetOrCreate<PlayerCombatInfoComponent>();
+        combatInfo.Team = player.CurrentTeam;
+
+        var weapon = pawn.Components.GetOrCreate<PlayerHitscanWeaponComponent>();
+        weapon.ActiveProfile = player.CurrentTeam == TeamTypes.Sniper
+            ? WeaponProfileKind.SniperRifle
+            : WeaponProfileKind.Sidearm;
+
+        pawn.Components.GetOrCreate<PlayerVitalityComponent>();
+        // ScreenPanel : requis pour que les PanelComponent (HUD) soient rendus à l’écran (doc moteur).
+        pawn.Components.GetOrCreate<ScreenPanel>();
+        pawn.Components.GetOrCreate<PlayerVitalityHud>();
+        pawn.Components.GetOrCreate<PlayerDeathScreenHud>();
+
         pawn.NetworkSpawn(player.Connection);
         player.Pawn = pawn;
+
+        var vitality = pawn.Components.Get<PlayerVitalityComponent>();
+        vitality?.ServerResetForSpawn();
     }
 }

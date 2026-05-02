@@ -1,5 +1,5 @@
 {
-  "__guid": "bea05434-630b-412d-963e-90bed87aeac0",
+  "__guid": "cda00001-0001-4001-8001-000000000001",
   "GameObjects": [
     {
       "__guid": "20500dd6-7913-43d1-8f8c-d99a767aa0e2",
@@ -41,9 +41,9 @@
           "__guid": "a1c2e3f4-5678-90ab-cdef-1234567890ab",
           "__enabled": true,
           "Flags": 0,
-          "CountdownDurationSeconds": 5,
+          "CountdownDurationSeconds": 1,
           "GameplayScenePath": "scenes/play.scene",
-          "MinPlayersToStart": 2,
+          "MinPlayersToStart": 1,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -431,8 +431,8 @@
     }
   },
   "ResourceVersion": 3,
-  "Title": null,
-  "Description": null,
+  "Title": "dev_quick",
+  "Description": "Lobby solo : 1 joueur, 1 s de compte à rebours, puis play.scene.",
   "__references": [],
   "__version": 3
 }
