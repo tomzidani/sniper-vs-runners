@@ -3,7 +3,10 @@ namespace SniperVsRunners.Features.GameFlow;
 using System;
 using Sandbox;
 using SniperVsRunners.Components.Game;
+using SniperVsRunners.Features.MatchResults;
+using SniperVsRunners.Features.PlayerStats;
 using SniperVsRunners.Managers;
+using SniperVsRunners.Teams;
 
 public sealed class MatchFlowComponent : Component
 {
@@ -31,6 +34,15 @@ public sealed class MatchFlowComponent : Component
     [Property]
     public string GameplayScenePath { get; set; } = "scenes/play.scene";
 
+    [Property]
+    public string LobbyScenePath { get; set; } = "scenes/lobby.scene";
+
+    [Property]
+    public float MatchDurationSeconds { get; set; } = 180f;
+
+    [Property]
+    public float ReturnToLobbyDelaySeconds { get; set; } = 4f;
+
     [Sync(SyncFlags.FromHost)]
     public MatchSessionPhase SessionPhase { get; set; } = MatchSessionPhase.WaitingForPlayers;
 
@@ -51,7 +63,10 @@ public sealed class MatchFlowComponent : Component
     public int ConnectedPlayerCount { get; set; }
 
     float _countdownElapsed;
+    float _matchElapsed;
+    float _returnToLobbyElapsed;
     bool _pendingBeginMatchAfterScene;
+    bool _pendingFinalizeReturnToLobby;
 
     protected override void OnUpdate()
     {
@@ -77,9 +92,23 @@ public sealed class MatchFlowComponent : Component
             _pendingBeginMatchAfterScene = false;
             gm.BeginMatch();
             SessionPhase = MatchSessionPhase.InMatch;
+            _matchElapsed = 0f;
             BannerTitle = "Partie en cours";
-            BannerSubtitle = string.Empty;
+            BannerSubtitle = "Le sniper doit éliminer tous les runners.";
             CountdownWholeSeconds = 0;
+            return;
+        }
+
+        if (_pendingFinalizeReturnToLobby && IsLobbySceneActive())
+        {
+            _pendingFinalizeReturnToLobby = false;
+            gm.FinalizeReturnToLobby();
+            SessionPhase = MatchSessionPhase.WaitingForPlayers;
+            BannerTitle = "Lobby";
+            BannerSubtitle = "Nouvelles équipes assignées. En attente de joueurs…";
+            CountdownWholeSeconds = 0;
+            _countdownElapsed = 0f;
+            _returnToLobbyElapsed = 0f;
             return;
         }
 
@@ -117,8 +146,110 @@ public sealed class MatchFlowComponent : Component
                 break;
 
             case MatchSessionPhase.InMatch:
+                RunInMatchRules(gm, count);
+                break;
+
+            case MatchSessionPhase.ReturningToLobby:
+                _returnToLobbyElapsed += Time.Delta;
+                var seconds = Math.Max(0, (int)Math.Ceiling(ReturnToLobbyDelaySeconds - _returnToLobbyElapsed));
+                CountdownWholeSeconds = seconds;
+                BannerTitle = "Fin de partie";
+                if (string.IsNullOrWhiteSpace(BannerSubtitle))
+                    BannerSubtitle = "Retour au lobby…";
+
+                if (_returnToLobbyElapsed >= ReturnToLobbyDelaySeconds)
+                    StartLobbyTransition(gm);
                 break;
         }
+    }
+
+    void RunInMatchRules(GameManager gm, int connectedCount)
+    {
+        _matchElapsed += Time.Delta;
+        var remaining = Math.Max(0f, MatchDurationSeconds - _matchElapsed);
+        CountdownWholeSeconds = (int)Math.Ceiling(remaining);
+        BannerTitle = "Partie en cours";
+        BannerSubtitle = $"Temps restant : {CountdownWholeSeconds}s";
+
+        if (connectedCount < MinPlayersToStart)
+        {
+            EndMatchAndReturnToLobby(
+                gm,
+                MatchEndReason.NotEnoughPlayers,
+                "Partie interrompue",
+                "Pas assez de joueurs pour continuer.");
+            return;
+        }
+
+        var sniperCount = gm.GetTeamPlayerCount(TeamTypes.Sniper);
+        if (sniperCount == 0)
+        {
+            EndMatchAndReturnToLobby(
+                gm,
+                MatchEndReason.SniperDisconnected,
+                "Partie interrompue",
+                "Le sniper a quitté la partie.");
+            return;
+        }
+
+        var runnerCount = gm.GetTeamPlayerCount(TeamTypes.Runners);
+        if (runnerCount == 0)
+        {
+            EndMatchAndReturnToLobby(
+                gm,
+                MatchEndReason.AllRunnersDisconnected,
+                "Victoire Sniper",
+                "Tous les runners ont quitté la partie.");
+            return;
+        }
+
+        var aliveSnipers = gm.GetAliveTeamPlayerCount(TeamTypes.Sniper);
+        if (aliveSnipers <= 0)
+        {
+            EndMatchAndReturnToLobby(
+                gm,
+                MatchEndReason.SniperEliminated,
+                "Victoire Runners",
+                "Le sniper a été éliminé.");
+            return;
+        }
+
+        var aliveRunners = gm.GetAliveTeamPlayerCount(TeamTypes.Runners);
+        if (aliveRunners <= 0)
+        {
+            EndMatchAndReturnToLobby(
+                gm,
+                MatchEndReason.AllRunnersEliminated,
+                "Victoire Sniper",
+                "Tous les runners sont éliminés.");
+            return;
+        }
+
+        if (_matchElapsed >= MatchDurationSeconds)
+        {
+            EndMatchAndReturnToLobby(
+                gm,
+                MatchEndReason.TimeoutSniperAlive,
+                "Victoire Sniper",
+                "Temps écoulé : le sniper est toujours en vie.");
+        }
+    }
+
+    void EndMatchAndReturnToLobby(GameManager gm, MatchEndReason reason, string title, string subtitle)
+    {
+        if (SessionPhase != MatchSessionPhase.InMatch)
+            return;
+
+        if (Networking.IsHost && PlayerStatsHost.Service != null)
+        {
+            var snaps = PlayerStatsService.BuildParticipantSnapshots(gm.AllPlayers);
+            PlayerStatsHost.Service.ApplyMatchOutcomes(reason, snaps);
+        }
+
+        SessionPhase = MatchSessionPhase.ReturningToLobby;
+        BannerTitle = title;
+        BannerSubtitle = subtitle;
+        _returnToLobbyElapsed = 0f;
     }
 
     void EnterCountdown()
@@ -148,6 +279,29 @@ public sealed class MatchFlowComponent : Component
         _pendingBeginMatchAfterScene = true;
     }
 
+    void StartLobbyTransition(GameManager gm)
+    {
+        BannerTitle = "Retour lobby";
+        BannerSubtitle = "Chargement du lobby…";
+        gm.PrepareReturnToLobby(reassignTeams: true);
+
+        var options = new SceneLoadOptions();
+        options.SetScene(LobbyScenePath);
+
+        if (!Game.ChangeScene(options))
+        {
+            Log.Error($"ChangeScene a échoué pour '{LobbyScenePath}'.");
+            gm.ReturnToLobby();
+            SessionPhase = MatchSessionPhase.WaitingForPlayers;
+            BannerTitle = "Lobby";
+            BannerSubtitle = "Retour local au lobby (fallback).";
+            CountdownWholeSeconds = 0;
+            return;
+        }
+
+        _pendingFinalizeReturnToLobby = true;
+    }
+
     bool IsGameplaySceneActive()
     {
         var scene = Game.ActiveScene;
@@ -165,6 +319,25 @@ public sealed class MatchFlowComponent : Component
 
         var title = scene.Name;
         return !string.IsNullOrEmpty(title) && title.Contains("play", StringComparison.OrdinalIgnoreCase);
+    }
+
+    bool IsLobbySceneActive()
+    {
+        var scene = Game.ActiveScene;
+        if (!scene.IsValid())
+            return false;
+
+        var want = NormalizeScenePath(LobbyScenePath);
+        var src = scene.Source;
+        if (src != null)
+        {
+            var path = NormalizeScenePath(src.ResourcePath);
+            if (!string.IsNullOrEmpty(path) && path.EndsWith(want, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        var title = scene.Name;
+        return !string.IsNullOrEmpty(title) && title.Contains("lobby", StringComparison.OrdinalIgnoreCase);
     }
 
     static string NormalizeScenePath(string path)

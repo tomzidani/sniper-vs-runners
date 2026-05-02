@@ -45,7 +45,7 @@ public partial class PlayerDeathScreenHud : PanelComponent
 		_subtitle.Style.FontColor = new Color(0.92f, 0.93f, 0.96f, 0.9f);
 		_subtitle.Style.MarginBottom = Length.Pixels(28);
 
-		_footer = Panel.AddChild(new Label("Respawn : à brancher sur le flux de partie.", "death-footer"));
+		_footer = Panel.AddChild(new Label("Vous reviendrez au lobby à la fin de la partie.", "death-footer"));
 		_footer.Style.FontSize = Length.Pixels(14);
 		_footer.Style.FontColor = new Color(1f, 1f, 1f, 0.45f);
 	}

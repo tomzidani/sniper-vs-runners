@@ -1,7 +1,11 @@
 namespace SniperVsRunners.Managers;
 
+using System;
+using System.Collections.Generic;
+using SniperVsRunners.Features.Vitality;
 using SniperVsRunners.Entities;
 using SniperVsRunners.Features.Spawning;
+using SniperVsRunners.Teams;
 
 public class GameManager
 {
@@ -12,6 +16,9 @@ public class GameManager
     public bool IsGameStarted => Phase == GamePhase.Playing;
 
     public int PlayerCount => _playerManager?.Players.Count ?? 0;
+
+    /// <summary>Liste des joueurs connectés côté hôte (pour snapshot fin de manche / stats).</summary>
+    public IReadOnlyList<PlayerEntity> AllPlayers => _playerManager?.Players ?? Array.Empty<PlayerEntity>();
 
     bool _sessionInitialized;
 
@@ -59,7 +66,20 @@ public class GameManager
 
     public void ReturnToLobby()
     {
+        PrepareReturnToLobby();
+        FinalizeReturnToLobby();
+    }
+
+    public void PrepareReturnToLobby(bool reassignTeams = true)
+    {
         Phase = GamePhase.Lobby;
+
+        if (reassignTeams)
+            _teamManager.ReassignForLobby(_playerManager.Players);
+    }
+
+    public void FinalizeReturnToLobby()
+    {
         RespawnEveryoneForCurrentRules();
     }
 
@@ -103,5 +123,29 @@ public class GameManager
 
         _teamManager.RemovePlayerFromAllTeams(player);
         _playerManager.RemovePlayer(player);
+    }
+
+    public int GetTeamPlayerCount(TeamTypes teamType)
+    {
+        return _teamManager.GetTeamPlayerCount(teamType);
+    }
+
+    public int GetAliveTeamPlayerCount(TeamTypes teamType)
+    {
+        var players = _teamManager.GetPlayersInTeam(teamType);
+        var alive = 0;
+
+        foreach (var player in players)
+        {
+            var pawn = player.Pawn;
+            if (!pawn.IsValid())
+                continue;
+
+            var vitality = pawn.Components.Get<PlayerVitalityComponent>();
+            if (vitality == null || !vitality.IsDead)
+                alive++;
+        }
+
+        return alive;
     }
 }

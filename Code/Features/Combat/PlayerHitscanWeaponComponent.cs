@@ -71,48 +71,28 @@ public partial class PlayerHitscanWeaponComponent : Component
 		if (!Networking.IsHost)
 			return;
 
-		if (Rpc.Caller != GameObject.Network.OwnerConnection)
+		if (Rpc.Caller != GameObject.Network.Owner)
 			return;
 
 		if (!CanFireThisFrame())
 			return;
 
-		var end = start + forward * MaxRange;
-
-		var tr = Scene.Trace
-			.Ray(start, end)
-			.UseHitboxes(true)
-			.UseHitPosition(true)
-			.WithoutTags("trigger")
-			.IgnoreGameObjectHierarchy(GameObject)
-			.Run();
-
-		if (!tr.Hit || tr.GameObject == null || !tr.GameObject.IsValid())
-			return;
-
-		var victimRoot = FindDamageableRoot(tr.GameObject);
-		if (!victimRoot.IsValid() || victimRoot == GameObject)
+		if (!CombatAimTrace.TryTraceDamageableTarget(
+			    Scene,
+			    GameObject,
+			    start,
+			    forward,
+			    MaxRange,
+			    out var tr,
+			    out var victimRoot,
+			    out var zone))
 			return;
 
 		var vitality = victimRoot.Components.Get<PlayerVitalityComponent>();
 		if (vitality == null || vitality.IsDead)
 			return;
 
-		var zone = BodyZoneResolver.Resolve(victimRoot, tr);
 		vitality.ServerApplyHit(GameObject, ActiveProfile, zone);
-	}
-
-	static GameObject FindDamageableRoot(GameObject hitObject)
-	{
-		var go = hitObject;
-		while (go.IsValid())
-		{
-			if (go.Components.Get<PlayerVitalityComponent>() != null)
-				return go;
-			go = go.Parent;
-		}
-
-		return default;
 	}
 
 	static bool ComputeIsLocalPawn(GameObject go)

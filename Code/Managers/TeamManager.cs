@@ -1,5 +1,6 @@
 namespace SniperVsRunners.Managers;
 
+using System;
 using SniperVsRunners.Teams;
 using SniperVsRunners.Entities;
 
@@ -63,5 +64,40 @@ public class TeamManager
         }
 
         team.AddPlayer(player);
+    }
+
+    public int GetTeamPlayerCount(TeamTypes teamType)
+    {
+        var team = GetTeam(teamType);
+        return team?.Players.Count ?? 0;
+    }
+
+    public IReadOnlyList<PlayerEntity> GetPlayersInTeam(TeamTypes teamType)
+    {
+        var team = GetTeam(teamType);
+        if (team == null)
+            return Array.Empty<PlayerEntity>();
+
+        return team.Players;
+    }
+
+    public void ReassignForLobby(IReadOnlyList<PlayerEntity> players)
+    {
+        foreach (var player in players)
+            RemovePlayerFromAllTeams(player);
+
+        if (players.Count == 0)
+            return;
+
+        var bag = players.ToList();
+        for (var i = bag.Count - 1; i > 0; i--)
+        {
+            var j = Random.Shared.Next(i + 1);
+            (bag[i], bag[j]) = (bag[j], bag[i]);
+        }
+
+        AddPlayerToTeam(bag[0], TeamTypes.Sniper);
+        for (var i = 1; i < bag.Count; i++)
+            AddPlayerToTeam(bag[i], TeamTypes.Runners);
     }
 }

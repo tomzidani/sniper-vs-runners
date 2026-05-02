@@ -37,7 +37,8 @@ public partial class MatchStatusHud : PanelComponent
 		_bannerTitle.Text = GetBannerTitle();
 		_bannerSubtitle.Text = GetBannerSubtitle();
 
-		var inCountdown = _flow != null && _flow.SessionPhase == MatchSessionPhase.Countdown;
+		var inCountdown = _flow != null &&
+			(_flow.SessionPhase == MatchSessionPhase.Countdown || _flow.SessionPhase == MatchSessionPhase.ReturningToLobby);
 		_countdownWrap.Style.Display = inCountdown ? DisplayMode.Flex : DisplayMode.None;
 		if (inCountdown)
 			_countdownDigit.Text = _flow.CountdownWholeSeconds.ToString();
@@ -89,6 +90,7 @@ public partial class MatchStatusHud : PanelComponent
 			MatchSessionPhase.WaitingForPlayers => $"En attente de joueurs — {count} / {_flow.MinPlayersToStart}.",
 			MatchSessionPhase.Countdown => $"Départ dans {_flow.CountdownWholeSeconds} s.",
 			MatchSessionPhase.LoadingArena => "Chargement de la map…",
+			MatchSessionPhase.ReturningToLobby => $"Retour lobby dans {_flow.CountdownWholeSeconds} s.",
 			_ => string.Empty
 		};
 	}

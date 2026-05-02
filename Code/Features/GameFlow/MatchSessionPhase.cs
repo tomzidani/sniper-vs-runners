@@ -5,5 +5,6 @@ public enum MatchSessionPhase
     WaitingForPlayers,
     Countdown,
     LoadingArena,
-    InMatch
+    InMatch,
+    ReturningToLobby
 }

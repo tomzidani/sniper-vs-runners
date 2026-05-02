@@ -3,6 +3,7 @@ namespace SniperVsRunners.Features.Vitality;
 using System;
 using Sandbox;
 using SniperVsRunners.Features.Combat;
+using SniperVsRunners.Features.PlayerStats;
 using SniperVsRunners.Features.Weapons;
 using SniperVsRunners.Teams;
 
@@ -38,6 +39,7 @@ public sealed class PlayerVitalityComponent : Component
 	float _baseWalk;
 	float _baseRun;
 	bool _cachedMovement;
+	GameObject _lastDamageAttackerRoot;
 
 	protected override void OnAwake()
 	{
@@ -105,6 +107,7 @@ public sealed class PlayerVitalityComponent : Component
 		LastDeathMessage = "";
 		LegInjuryTier = 0;
 		_bleedPerSecond = 0f;
+		_lastDamageAttackerRoot = null;
 
 		var pc = Components.Get<PlayerController>();
 		if (pc != null && _cachedMovement)
@@ -144,6 +147,8 @@ public sealed class PlayerVitalityComponent : Component
 
 		if (attackerInfo.Team == TeamTypes.Spectators || victimInfo.Team == TeamTypes.Spectators)
 			return;
+
+		_lastDamageAttackerRoot = attackerRoot;
 
 		switch (weapon)
 		{
@@ -239,6 +244,8 @@ public sealed class PlayerVitalityComponent : Component
 
 		IsDead = true;
 		_bleedPerSecond = 0f;
+		PlayerStatsKillBridge.NotifyKillFromDamage(_lastDamageAttackerRoot, GameObject);
+		_lastDamageAttackerRoot = null;
 		ApplyDeathPresentation("dégâts");
 	}
 
@@ -249,6 +256,8 @@ public sealed class PlayerVitalityComponent : Component
 
 		IsDead = true;
 		_bleedPerSecond = 0f;
+		PlayerStatsKillBridge.NotifyKillFromDamage(_lastDamageAttackerRoot, GameObject);
+		_lastDamageAttackerRoot = null;
 		ApplyDeathPresentation("saignement");
 	}
 

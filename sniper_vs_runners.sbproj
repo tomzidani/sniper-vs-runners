@@ -18,12 +18,13 @@
     "MapSelect": "Unrestricted",
     "MapList": [
       "facepunch.flatgrass",
-      "scenes/dev_quick.scene"
+      "scenes/lobby.scene",
+      "scenes/play.scene"
     ],
     "RankType": "None",
     "PerMapRanking": false,
     "LeaderboardType": "None",
     "CsProjName": "",
-    "StartupScene": "scenes/dev_quick.scene"
+    "StartupScene": "scenes/lobby.scene"
   }
 }

@@ -3,6 +3,7 @@ namespace SniperVsRunners.Components.Game;
 using System.Threading.Tasks;
 using Sandbox;
 using SniperVsRunners.Features.GameFlow;
+using SniperVsRunners.Features.PlayerStats;
 using SniperVsRunners.Managers;
 
 public class GameComponent : Component, Component.INetworkListener
@@ -47,6 +48,7 @@ public class GameComponent : Component, Component.INetworkListener
             fallback = GameObject;
 
         _gameManager.ConfigureSpawning(PlayerPrefab, fallback);
+        PlayerStatsHost.Initialize();
     }
 
     protected override async Task OnLoad()
@@ -65,6 +67,7 @@ public class GameComponent : Component, Component.INetworkListener
             return;
 
         _instance = null;
+        PlayerStatsHost.Shutdown();
         _gameManager?.ClearSingletonIfThis();
     }
 

@@ -5,6 +5,7 @@ using System;
 /// <summary>
 /// Interprète une <see cref="Hitbox"/> (chaîne d’os) en <see cref="BodyHitZone"/>.
 /// Couvre les conventions courantes du citizen Source 2 ; noms inconnus → false.
+/// Le bassin (pelvis / hips) est traité comme membre inférieur : beaucoup de hitboxes « jambe » y sont attachées.
 /// </summary>
 public static class HitboxBodyZoneMapper
 {
@@ -61,7 +62,9 @@ public static class HitboxBodyZoneMapper
 		|| n.Contains("neck");
 
 	static bool IsLegBoneName(string n) =>
-		n.Contains("leg")
+		n.Contains("pelvis")
+		|| n.Contains("hips")
+		|| n.Contains("leg")
 		|| n.Contains("thigh")
 		|| n.Contains("calf")
 		|| n.Contains("knee")
@@ -85,10 +88,8 @@ public static class HitboxBodyZoneMapper
 
 	static bool IsTorsoBoneName(string n) =>
 		n.Contains("spine")
-		|| n.Contains("pelvis")
 		|| n.Contains("chest")
 		|| n.Contains("stomach")
 		|| n.Contains("torso")
-		|| n.Contains("abdomen")
-		|| n.Contains("hips");
+		|| n.Contains("abdomen");
 }
