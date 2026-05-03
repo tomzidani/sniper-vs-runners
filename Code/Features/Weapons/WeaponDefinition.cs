@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using Sandbox;
 using Sandbox.Citizen;
+using SniperVsRunners.Features.Combat;
 
 /// <summary>
 /// Fiche d’arme (données combat + visuel). Fichiers <c>.weapon</c> sous <c>Assets/weapons/...</c>.
@@ -37,14 +38,15 @@ public partial class WeaponDefinition : GameResource
 	[Property, Group("Combat")]
 	public float SpreadHalfAngleDegrees { get; set; }
 
-	public enum DamageStyleKind
-	{
-		PistolZones,
-		SniperZones
-	}
+	// --- Ballistics (hitscan) ---
 
-	[Property, Group("Combat")]
-	public DamageStyleKind DamageStyle { get; set; } = DamageStyleKind.PistolZones;
+	/// <summary>0 = pas de chute ; 1 = pleine chute (pitch max <see cref="BulletDropMaxPitchDegrees"/>).</summary>
+	[Property, Group("Ballistics")]
+	public float BulletDropIntensity { get; set; }
+
+	/// <summary>À intensité 1 : rotation vers le bas (degrés) appliquée au rayon après le spread.</summary>
+	[Property, Group("Ballistics")]
+	public float BulletDropMaxPitchDegrees { get; set; } = 2.5f;
 
 	// --- Ammo ---
 
@@ -66,54 +68,120 @@ public partial class WeaponDefinition : GameResource
 	[Property, Group("Ammo")]
 	public bool AutoReloadWhenEmpty { get; set; } = true;
 
-	// --- Damage — Pistol zones ---
+	// --- Damage — Head ---
 
-	[Property, Group("Damage — Pistol zones")]
-	public float PistolDamageHead { get; set; } = 55f;
+	[Property, Group("Damage — Head")]
+	public float ZoneHeadHealthDamage { get; set; } = 55f;
 
-	[Property, Group("Damage — Pistol zones")]
-	public float PistolDamageTorso { get; set; } = 32f;
+	[Property, Group("Damage — Head")]
+	public float ZoneHeadBleedPerSecond { get; set; } = 4f;
 
-	[Property, Group("Damage — Pistol zones")]
-	public float PistolDamageArm { get; set; } = 26f;
+	[Property, Group("Damage — Head")]
+	public int ZoneHeadLegInjuryAdd { get; set; }
 
-	[Property, Group("Damage — Pistol zones")]
-	public float PistolDamageLeg { get; set; } = 22f;
+	[Property, Group("Damage — Head")]
+	public bool ZoneHeadInstantKill { get; set; }
 
-	[Property, Group("Damage — Pistol zones")]
-	public float PistolBleedHead { get; set; } = 4f;
+	// --- Damage — Torso ---
 
-	[Property, Group("Damage — Pistol zones")]
-	public float PistolBleedTorso { get; set; } = 2.5f;
+	[Property, Group("Damage — Torso")]
+	public float ZoneTorsoHealthDamage { get; set; } = 32f;
 
-	[Property, Group("Damage — Pistol zones")]
-	public float PistolBleedArm { get; set; } = 2f;
+	[Property, Group("Damage — Torso")]
+	public float ZoneTorsoBleedPerSecond { get; set; } = 2.5f;
 
-	[Property, Group("Damage — Pistol zones")]
-	public float PistolBleedLeg { get; set; } = 1.5f;
+	[Property, Group("Damage — Torso")]
+	public int ZoneTorsoLegInjuryAdd { get; set; }
 
-	[Property, Group("Damage — Pistol zones")]
-	public int PistolLegInjuryOnLegHit { get; set; } = 1;
+	[Property, Group("Damage — Torso")]
+	public bool ZoneTorsoInstantKill { get; set; }
 
-	// --- Damage — Sniper zones ---
+	// --- Damage — Arm ---
 
-	[Property, Group("Damage — Sniper zones")]
-	public bool SniperHeadTorsoInstantKill { get; set; } = true;
+	[Property, Group("Damage — Arm")]
+	public float ZoneArmHealthDamage { get; set; } = 26f;
 
-	[Property, Group("Damage — Sniper zones")]
-	public float SniperLegDamage { get; set; } = 70f;
+	[Property, Group("Damage — Arm")]
+	public float ZoneArmBleedPerSecond { get; set; } = 2f;
 
-	[Property, Group("Damage — Sniper zones")]
-	public int SniperLegInjury { get; set; } = 2;
+	[Property, Group("Damage — Arm")]
+	public int ZoneArmLegInjuryAdd { get; set; }
 
-	[Property, Group("Damage — Sniper zones")]
-	public float SniperLegBleed { get; set; } = 9f;
+	[Property, Group("Damage — Arm")]
+	public bool ZoneArmInstantKill { get; set; }
 
-	[Property, Group("Damage — Sniper zones")]
-	public float SniperArmDamage { get; set; } = 52f;
+	// --- Damage — Leg ---
 
-	[Property, Group("Damage — Sniper zones")]
-	public float SniperArmBleed { get; set; } = 7f;
+	[Property, Group("Damage — Leg")]
+	public float ZoneLegHealthDamage { get; set; } = 22f;
+
+	[Property, Group("Damage — Leg")]
+	public float ZoneLegBleedPerSecond { get; set; } = 1.5f;
+
+	[Property, Group("Damage — Leg")]
+	public int ZoneLegLegInjuryAdd { get; set; } = 1;
+
+	[Property, Group("Damage — Leg")]
+	public bool ZoneLegInstantKill { get; set; }
+
+	// --- Audio ---
+
+	[Property, Group("Audio")]
+	public string PrimaryFireSoundPath { get; set; } = "";
+
+	[Property, Group("Audio")]
+	public float PrimaryFireSoundVolume { get; set; } = 1f;
+
+	[Property, Group("Audio")]
+	public float PrimaryFireHearingRange { get; set; } = 3500f;
+
+	[Property, Group("Audio")]
+	public string ReloadSoundPath { get; set; } = "";
+
+	[Property, Group("Audio")]
+	public float ReloadSoundVolume { get; set; } = 0.85f;
+
+	[Property, Group("Audio")]
+	public float ReloadHearingRange { get; set; } = 2400f;
+
+	// --- FX (tracers) ---
+
+	/// <summary>Durée d’affichage du faisceau (0 = désactivé).</summary>
+	[Property, Group("FX — Tracer")]
+	public float TracerDrawSeconds { get; set; } = 0.075f;
+
+	[Property, Group("FX — Tracer")]
+	public Color TracerColor { get; set; } = new Color(1f, 0.92f, 0.35f, 0.9f);
+
+	/// <summary>Épaisseur monde du faisceau (modèle dev/box étiré).</summary>
+	[Property, Group("FX — Tracer")]
+	public float TracerWorldThickness { get; set; } = 0.22f;
+
+	/// <summary>Vitesse visuelle du tracer (unités/s) pour simuler le temps de vol.</summary>
+	[Property, Group("FX — Tracer")]
+	public float TracerVisualSpeed { get; set; } = 13_000f;
+
+	/// <summary>Longueur du segment lumineux qui se déplace (style balle fuselante).</summary>
+	[Property, Group("FX — Tracer")]
+	public float TracerSegmentWorldLength { get; set; } = 22f;
+
+	// --- FX (muzzle flash) ---
+
+	[Property, Group("FX — Muzzle flash")]
+	public bool MuzzleFlashEnabled { get; set; } = true;
+
+	[Property, Group("FX — Muzzle flash")]
+	public float MuzzleFlashDuration { get; set; } = 0.045f;
+
+	[Property, Group("FX — Muzzle flash")]
+	public float MuzzleFlashScale { get; set; } = 0.55f;
+
+	[Property, Group("FX — Muzzle flash")]
+	public Color MuzzleFlashColor { get; set; } = new Color(1f, 0.88f, 0.45f, 0.95f);
+
+	/// <summary>Décalage local depuis le point muzzle résolu (fallback visuel).</summary>
+	[Property, Group("FX — Muzzle flash")]
+	public Vector3 MuzzleFlashLocalOffset { get; set; }
 
 	// --- World visual (third person) ---
 
@@ -293,6 +361,38 @@ public partial class WeaponDefinition : GameResource
 	[ResourceType("vmdl")]
 	[Property, Group("First person visual")]
 	public string FirstPersonArmsModel { get; set; } = "";
+
+	/// <summary>Remplit les valeurs d’impact pour <see cref="WeaponHitResolver"/>.</summary>
+	public void GetZoneCombat(BodyHitZone zone, out float healthDamage, out float bleedPerSecond, out int legInjuryAdd, out bool instantKill)
+	{
+		switch (zone)
+		{
+			case BodyHitZone.Head:
+				healthDamage = ZoneHeadHealthDamage;
+				bleedPerSecond = ZoneHeadBleedPerSecond;
+				legInjuryAdd = ZoneHeadLegInjuryAdd;
+				instantKill = ZoneHeadInstantKill;
+				return;
+			case BodyHitZone.Torso:
+				healthDamage = ZoneTorsoHealthDamage;
+				bleedPerSecond = ZoneTorsoBleedPerSecond;
+				legInjuryAdd = ZoneTorsoLegInjuryAdd;
+				instantKill = ZoneTorsoInstantKill;
+				return;
+			case BodyHitZone.Arm:
+				healthDamage = ZoneArmHealthDamage;
+				bleedPerSecond = ZoneArmBleedPerSecond;
+				legInjuryAdd = ZoneArmLegInjuryAdd;
+				instantKill = ZoneArmInstantKill;
+				return;
+			default:
+				healthDamage = ZoneLegHealthDamage;
+				bleedPerSecond = ZoneLegBleedPerSecond;
+				legInjuryAdd = ZoneLegLegInjuryAdd;
+				instantKill = ZoneLegInstantKill;
+				return;
+		}
+	}
 
 	/// <summary>
 	/// Les chemins copiés depuis l’éditeur finissent souvent par <c>.vmdl_c</c> ; le runtime charge en général le <c>.vmdl</c>.

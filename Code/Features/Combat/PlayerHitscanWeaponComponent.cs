@@ -41,6 +41,18 @@ public partial class PlayerHitscanWeaponComponent : Component
 	[Sync(SyncFlags.FromHost)]
 	public uint ReloadFxSequence { get; set; }
 
+	/// <summary>Fin du rayon du dernier tir (sync hôte) pour tracer / FX ; même trace que les dégâts.</summary>
+	[Sync(SyncFlags.FromHost)]
+	public Vector3 FireTracerEndWorld { get; set; }
+
+	/// <summary>Direction initiale du tir validé (après spread + drop) pour tracer visuel courbe.</summary>
+	[Sync(SyncFlags.FromHost)]
+	public Vector3 FireTracerDirectionWorld { get; set; }
+
+	/// <summary>Point de départ du dernier tir validé (source autoritaire hôte).</summary>
+	[Sync(SyncFlags.FromHost)]
+	public Vector3 FireTracerStartWorld { get; set; }
+
 	string _cachedIdent;
 	WeaponDefinition _cachedDef;
 
@@ -256,7 +268,15 @@ public partial class PlayerHitscanWeaponComponent : Component
 
 		AmmoInMag--;
 
-		forward = WeaponSpread.ApplyCone(forward, def.SpreadHalfAngleDegrees);
+		var pcFire = Components.Get<PlayerController>();
+		var eyeStart = pcFire != null ? pcFire.EyePosition : start;
+		var forwardBase = pcFire != null ? pcFire.EyeAngles.Forward : forward;
+		var aimDir = WeaponBallistics.ComputeFireDirection(forwardBase, def);
+
+		TryApplyPrimaryFireDamage(eyeStart, aimDir, def, out var tracerEnd);
+		FireTracerStartWorld = eyeStart;
+		FireTracerEndWorld = tracerEnd;
+		FireTracerDirectionWorld = aimDir;
 
 		unchecked
 		{
@@ -264,26 +284,33 @@ public partial class PlayerHitscanWeaponComponent : Component
 		}
 
 		Components.Get<PlayerCitizenWeaponVisualComponent>()
-			?.OnAuthorityPrimaryFireFx(FireFxSequence, def);
-
-		TryApplyPrimaryFireDamage(start, forward, def);
+			?.OnAuthorityPrimaryFireFx(FireFxSequence, def, tracerEnd, aimDir);
 
 		if (AmmoInMag == 0 && def.AutoReloadWhenEmpty)
 			TryStartReloadAsAuthority();
 	}
 
-	void TryApplyPrimaryFireDamage(Vector3 start, Vector3 forward, WeaponDefinition def)
+	void TryApplyPrimaryFireDamage(Vector3 start, Vector3 forward, WeaponDefinition def, out Vector3 tracerEndWorld)
 	{
+		var far = start + forward * def.MaxRange;
+		tracerEndWorld = far;
+
 		if (!CombatAimTrace.TryTraceDamageableTarget(
 			    Scene,
 			    GameObject,
 			    start,
 			    forward,
 			    def.MaxRange,
-			    out _,
+			    out var trace,
 			    out var victimRoot,
 			    out var zone))
+		{
+			if (trace.Hit)
+				tracerEndWorld = trace.HitPosition;
 			return;
+		}
+
+		tracerEndWorld = trace.HitPosition;
 
 		var vitality = victimRoot.Components.Get<PlayerVitalityComponent>();
 		if (vitality == null || vitality.IsDead)
@@ -321,7 +348,11 @@ public partial class PlayerHitscanWeaponComponent : Component
 		if (!Networking.IsHost)
 			return;
 
-		PerformPrimaryFireAsAuthority(start, forward);
+		var pc = Components.Get<PlayerController>();
+		if (pc != null)
+			PerformPrimaryFireAsAuthority(pc.EyePosition, pc.EyeAngles.Forward);
+		else
+			PerformPrimaryFireAsAuthority(start, forward);
 	}
 
 	[Rpc.Host]

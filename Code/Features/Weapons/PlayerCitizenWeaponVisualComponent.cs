@@ -190,17 +190,19 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 			return;
 
 		_lastSeenFireFxSequence = seq;
-		ApplyPrimaryFireAnimPulse(def);
+		ApplyPrimaryFireAnimPulse(def, weapon.FireTracerStartWorld, weapon.FireTracerEndWorld, weapon.FireTracerDirectionWorld);
 	}
 
 	/// <summary>
 	/// Appelé sur la machine autoritaire juste après l’incrément de <see cref="PlayerHitscanWeaponComponent.FireFxSequence"/> pour éviter un délai d’une frame avant le pulse d’anim.
 	/// Les proxies se mettent à jour via <see cref="TryConsumePrimaryFireFx"/>.
 	/// </summary>
-	public void OnAuthorityPrimaryFireFx(uint sequence, WeaponDefinition def)
+	public void OnAuthorityPrimaryFireFx(uint sequence, WeaponDefinition def, Vector3 tracerEndWorld, Vector3 tracerDirectionWorld)
 	{
 		_lastSeenFireFxSequence = sequence;
-		ApplyPrimaryFireAnimPulse(def);
+		var weapon = Components.Get<PlayerHitscanWeaponComponent>();
+		var syncedStart = weapon != null ? weapon.FireTracerStartWorld : GameObject.WorldPosition;
+		ApplyPrimaryFireAnimPulse(def, syncedStart, tracerEndWorld, tracerDirectionWorld);
 	}
 
 	void TryConsumeReloadFx(PlayerHitscanWeaponComponent weapon, WeaponDefinition def)
@@ -251,9 +253,15 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		}
 
 		TryPulseFirstPersonReload(def);
+
+		if (def != null)
+		{
+			var pcFx = Components.Get<PlayerController>();
+			WeaponFx.PlayReload(def, pcFx?.EyePosition ?? GameObject.WorldPosition);
+		}
 	}
 
-	void ApplyPrimaryFireAnimPulse(WeaponDefinition def)
+	void ApplyPrimaryFireAnimPulse(WeaponDefinition def, Vector3 tracerStartWorld, Vector3 tracerEndWorld, Vector3 tracerDirectionWorld)
 	{
 		var body = CitizenBodySkinned;
 		var bodyParam = string.IsNullOrWhiteSpace(def?.BodyPrimaryFireParameterName)
@@ -275,6 +283,37 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		}
 
 		TryPulseFirstPersonPrimaryFire(def);
+
+		if (def != null)
+		{
+			var pcFx = Components.Get<PlayerController>();
+			var eye = pcFx?.EyePosition ?? GameObject.WorldPosition;
+			var start = ResolveTracerStartWorld(pcFx, def, tracerStartWorld, eye);
+			var dir = tracerDirectionWorld.Length > 0.001f ? tracerDirectionWorld.Normal : (tracerEndWorld - start).Normal;
+			var right = Vector3.Cross(dir, Vector3.Up);
+			if (right.Length < 0.001f)
+				right = Vector3.Cross(dir, Vector3.Right);
+			right = right.Normal;
+			var up = Vector3.Cross(right, dir).Normal;
+			var muzzleOffset = right * def.MuzzleFlashLocalOffset.x + up * def.MuzzleFlashLocalOffset.y + dir * def.MuzzleFlashLocalOffset.z;
+			WeaponFx.PlayPrimaryFire(def, start);
+			WeaponTracerBeam.SpawnIfEnabled(Scene, start, tracerEndWorld, dir, def);
+			WeaponMuzzleFlashFx.SpawnIfEnabled(Scene, start + muzzleOffset, dir, def);
+		}
+	}
+
+	Vector3 ResolveTracerStartWorld(PlayerController pc, WeaponDefinition def, Vector3 syncedStart, Vector3 fallbackEye)
+	{
+		if (pc != null && IsLocalPawn() && !pc.ThirdPerson && def != null && def.UseFirstPersonViewModel && _fpWeaponVisualRoot.IsValid())
+			return _fpWeaponVisualRoot.WorldPosition;
+
+		if (_weaponVisualRoot.IsValid())
+			return _weaponVisualRoot.WorldPosition;
+
+		if (syncedStart.Length > 0.001f)
+			return syncedStart;
+
+		return fallbackEye;
 	}
 
 	/// <summary>Tir 1P : uniquement quand <see cref="PlayerHitscanWeaponComponent.FireFxSequence"/> augmente (pas sur chaque clic si cadence bloque).</summary>

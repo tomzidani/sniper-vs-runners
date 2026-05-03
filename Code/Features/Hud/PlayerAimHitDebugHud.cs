@@ -63,12 +63,28 @@ public partial class PlayerAimHitDebugHud : PanelComponent
 		if (preview is not { ShowPreview: true } || string.IsNullOrEmpty(preview.HudLine1))
 		{
 			Panel.Style.Display = DisplayMode.None;
+			Panel.Style.BorderTopWidth = 1;
 			return;
 		}
 
 		Panel.Style.Display = DisplayMode.Flex;
 		_line1.Text = preview.HudLine1;
 		_line2.Text = preview.HudLine2 ?? "";
+
+		if (preview.ShowGameplayZoneHighlight && preview.HasValidAimTarget)
+		{
+			var zc = PlayerAimHitPreviewComponent.GetZoneHighlightColor(preview.CurrentAimZone);
+			Panel.Style.BorderTopWidth = 7;
+			Panel.Style.BorderTopColor = zc;
+			Panel.Style.BackgroundColor = zc.WithAlpha(0.22f);
+		}
+		else
+		{
+			Panel.Style.BorderTopWidth = 1;
+			Panel.Style.BorderTopColor = new Color(0.4f, 0.75f, 1f, 0.35f);
+			Panel.Style.BackgroundColor = new Color(0.02f, 0.04f, 0.08f, 0.82f);
+		}
+
 		StateHasChanged();
 	}
 

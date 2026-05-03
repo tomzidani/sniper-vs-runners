@@ -6,6 +6,7 @@ using System.Text;
 using Sandbox;
 using SniperVsRunners.Features.GameFlow;
 using SniperVsRunners.Features.Vitality;
+using SniperVsRunners.Features.Weapons;
 using SniperVsRunners.Teams;
 
 /// <summary>
@@ -22,6 +23,9 @@ public sealed class PlayerAimHitPreviewComponent : Component
 	/// <summary>Si vrai, la prévisualisation (et le HUD) ne tournent qu’en phase <see cref="MatchSessionPhase.InMatch"/>.</summary>
 	[Property] public bool RestrictPreviewToInMatch { get; set; }
 
+	/// <summary>Bandeau coloré sur le HUD debug + bordure : même balistique que le tir (sans spread aléatoire).</summary>
+	[Property] public bool ShowGameplayZoneHighlight { get; set; } = true;
+
 	[Property] public float MaxRangeFallback { get; set; } = 10_000f;
 
 	/// <summary>Renseigné pour le panneau HUD dev quand une cible valide est sous la visée.</summary>
@@ -30,6 +34,12 @@ public sealed class PlayerAimHitPreviewComponent : Component
 	/// <summary>Détail hitbox / os (vide sinon).</summary>
 	public string HudLine2 { get; private set; } = "";
 
+	/// <summary>Cible joueur valide sous la visée (profil balistique actif).</summary>
+	public bool HasValidAimTarget { get; private set; }
+
+	/// <summary>Zone anatomique résolue si <see cref="HasValidAimTarget"/>.</summary>
+	public BodyHitZone CurrentAimZone { get; private set; }
+
 	bool _hasPreview;
 	SceneTraceResult _trace;
 	BodyHitZone _zone;
@@ -37,6 +47,7 @@ public sealed class PlayerAimHitPreviewComponent : Component
 	protected override void OnUpdate()
 	{
 		_hasPreview = false;
+		HasValidAimTarget = false;
 		HudLine1 = "";
 		HudLine2 = "";
 
@@ -58,12 +69,14 @@ public sealed class PlayerAimHitPreviewComponent : Component
 
 		var weapon = Components.Get<PlayerHitscanWeaponComponent>();
 		var maxRange = weapon != null ? weapon.EffectiveMaxRange : MaxRangeFallback;
+		var def = weapon?.ResolveActiveDefinition();
+		var aimForward = WeaponBallistics.ComputePreviewDirection(pc.EyeAngles.Forward, def);
 
 		if (!CombatAimTrace.TryTraceDamageableTarget(
 			    Scene,
 			    GameObject,
 			    pc.EyePosition,
-			    pc.EyeAngles.Forward,
+			    aimForward,
 			    maxRange,
 			    out _trace,
 			    out _,
@@ -71,6 +84,8 @@ public sealed class PlayerAimHitPreviewComponent : Component
 			return;
 
 		_hasPreview = true;
+		HasValidAimTarget = true;
+		CurrentAimZone = _zone;
 		HudLine1 = $"Visée : {ZoneLabel(_zone)}";
 		HudLine2 = _trace.Hitbox != null
 			? $"Hitbox : oui  ·  Os {FormatBoneChain(_trace.Hitbox)}"
@@ -84,7 +99,7 @@ public sealed class PlayerAimHitPreviewComponent : Component
 		if (!_hasPreview || !ShowPreview)
 			return;
 
-		var color = ZoneColor(_zone);
+		var color = GetZoneHighlightColor(_zone);
 		using (Gizmo.Scope("svr_aim_hit_preview", Scene.Transform.World))
 		{
 			Gizmo.Draw.IgnoreDepth = true;
@@ -195,7 +210,7 @@ public sealed class PlayerAimHitPreviewComponent : Component
 		return m < 0.0001f ? 1f : m;
 	}
 
-	static Color ZoneColor(BodyHitZone z) =>
+	public static Color GetZoneHighlightColor(BodyHitZone z) =>
 		z switch
 		{
 			BodyHitZone.Head => new Color(1f, 0.25f, 0.2f),
