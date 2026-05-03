@@ -1,9 +1,12 @@
 namespace SniperVsRunners.Components.Game;
 
+using System;
 using System.Threading.Tasks;
 using Sandbox;
 using SniperVsRunners.Features.GameFlow;
+using SniperVsRunners.Features.Inventory;
 using SniperVsRunners.Features.PlayerStats;
+using SniperVsRunners.Features.Weapons;
 using SniperVsRunners.Managers;
 
 public class GameComponent : Component, Component.INetworkListener
@@ -23,6 +26,24 @@ public class GameComponent : Component, Component.INetworkListener
 
     [Property]
     public bool CreateLobbyIfNone { get; set; } = true;
+
+    /// <summary>
+    /// Si vrai : tous les joueurs reçoivent le profil pistolet (test 2 joueurs). Si faux : sniper = fusil, runners = pistolet.
+    /// </summary>
+    [Property]
+    public bool DevForceEveryonePistol { get; set; } = true;
+
+    /// <summary>Arme des runners (référence asset <c>.weapon</c>). Si null, ident <c>usp</c>.</summary>
+    [Property]
+    public WeaponDefinition RunnerPrimary { get; set; }
+
+    /// <summary>Arme du sniper. Si null, ident <c>m700</c>.</summary>
+    [Property]
+    public WeaponDefinition SniperPrimary { get; set; }
+
+    /// <summary>Si renseigné avec <see cref="DevForceEveryonePistol"/>, remplace l’arme pour tout le monde.</summary>
+    [Property]
+    public WeaponDefinition DevEveryonePrimary { get; set; }
 
     public GameManager Game => _gameManager;
 
@@ -49,6 +70,7 @@ public class GameComponent : Component, Component.INetworkListener
 
         _gameManager.ConfigureSpawning(PlayerPrefab, fallback);
         PlayerStatsHost.Initialize();
+        GameObject.Components.GetOrCreate<InventoryFxComponent>();
     }
 
     protected override async Task OnLoad()
@@ -67,8 +89,26 @@ public class GameComponent : Component, Component.INetworkListener
             return;
 
         _instance = null;
-        PlayerStatsHost.Shutdown();
-        _gameManager?.ClearSingletonIfThis();
+
+        try
+        {
+            PlayerStatsHost.Shutdown();
+        }
+        catch (Exception e)
+        {
+            Log.Error(e, "PlayerStatsHost.Shutdown a échoué pendant GameComponent.OnDestroy (souvent I/O ou état réseau en cours d’arrêt).");
+        }
+        finally
+        {
+            try
+            {
+                _gameManager?.ClearSingletonIfThis();
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "GameManager.ClearSingletonIfThis a échoué pendant GameComponent.OnDestroy.");
+            }
+        }
     }
 
     protected override void OnStart()

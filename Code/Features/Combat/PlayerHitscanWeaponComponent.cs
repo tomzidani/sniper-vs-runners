@@ -7,16 +7,31 @@ using SniperVsRunners.Features.Weapons;
 using SniperVsRunners.Teams;
 
 /// <summary>
-/// Tir hitscan : le propriétaire envoie une requête à l’hôte, qui trace et applique les dégâts.
+/// Tir hitscan : capacités issues de <see cref="WeaponDefinition"/> (ident sync côté hôte).
 /// </summary>
 public partial class PlayerHitscanWeaponComponent : Component
 {
-	[Property] public float MaxRange { get; set; } = 10_000f;
-
-	[Property] public float FireCooldownSeconds { get; set; } = 0.35f;
-
+	/// <summary>Ident de la fiche <see cref="WeaponDefinition"/> (registre PostLoad).</summary>
 	[Sync(SyncFlags.FromHost)]
-	public WeaponProfileKind ActiveProfile { get; set; } = WeaponProfileKind.Sidearm;
+	public string ActiveWeaponIdent { get; set; } = "usp";
+
+	string _cachedIdent;
+	WeaponDefinition _cachedDef;
+
+	/// <summary>Résout la définition active (cache local par ident).</summary>
+	public WeaponDefinition ResolveActiveDefinition()
+	{
+		if (ActiveWeaponIdent == _cachedIdent && _cachedDef != null)
+			return _cachedDef;
+
+		_cachedIdent = ActiveWeaponIdent;
+		_cachedDef = WeaponDefinition.Resolve(ActiveWeaponIdent);
+		return _cachedDef;
+	}
+
+	public float EffectiveMaxRange => ResolveActiveDefinition()?.MaxRange ?? 10_000f;
+
+	public float EffectiveFireCooldown => ResolveActiveDefinition()?.FireCooldownSeconds ?? 0.35f;
 
 	float _nextFireTime;
 
@@ -41,9 +56,10 @@ public partial class PlayerHitscanWeaponComponent : Component
 		if (pc == null)
 			return;
 
-		var forward = pc.EyeAngles.Forward;
-		_nextFireTime = Time.Now + FireCooldownSeconds;
-		HostRequestPrimaryFire(pc.EyePosition, forward);
+		// Ne pas exiger WeaponDefinition en local : ResourceLibrary peut différer client/hôte ; l’hôte résout au RPC.
+		var cd = EffectiveFireCooldown;
+		_nextFireTime = Time.Now + cd;
+		HostRequestPrimaryFire(pc.EyePosition, pc.EyeAngles.Forward);
 	}
 
 	bool IsDeadLocally()
@@ -55,8 +71,13 @@ public partial class PlayerHitscanWeaponComponent : Component
 	bool CanFireThisFrame()
 	{
 		var flow = MatchFlowComponent.Current;
-		if (flow != null && flow.SessionPhase != MatchSessionPhase.InMatch)
-			return false;
+		if (flow != null)
+		{
+			// InMatch + court créneau LoadingArena (même frame / ordre composants après chargement map).
+			if (flow.SessionPhase != MatchSessionPhase.InMatch
+			    && flow.SessionPhase != MatchSessionPhase.LoadingArena)
+				return false;
+		}
 
 		var info = Components.Get<PlayerCombatInfoComponent>();
 		if (info == null || info.Team == TeamTypes.Spectators)
@@ -71,18 +92,22 @@ public partial class PlayerHitscanWeaponComponent : Component
 		if (!Networking.IsHost)
 			return;
 
-		if (Rpc.Caller != GameObject.Network.Owner)
-			return;
-
+		// Le RPC est invoqué sur le composant du pawn du tireur ; pas de garde OwnerId (souvent vide / incohérent selon timing listen-server).
 		if (!CanFireThisFrame())
 			return;
+
+		var def = WeaponDefinition.Resolve(ActiveWeaponIdent);
+		if (def == null)
+			return;
+
+		forward = WeaponSpread.ApplyCone(forward, def.SpreadHalfAngleDegrees);
 
 		if (!CombatAimTrace.TryTraceDamageableTarget(
 			    Scene,
 			    GameObject,
 			    start,
 			    forward,
-			    MaxRange,
+			    def.MaxRange,
 			    out var tr,
 			    out var victimRoot,
 			    out var zone))
@@ -92,7 +117,7 @@ public partial class PlayerHitscanWeaponComponent : Component
 		if (vitality == null || vitality.IsDead)
 			return;
 
-		vitality.ServerApplyHit(GameObject, ActiveProfile, zone);
+		vitality.ServerApplyHit(GameObject, ActiveWeaponIdent, zone);
 	}
 
 	static bool ComputeIsLocalPawn(GameObject go)

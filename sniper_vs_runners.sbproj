@@ -6,7 +6,12 @@
   "Schema": 1,
   "IncludeSourceFiles": false,
   "Resources": null,
-  "PackageReferences": [],
+  "PackageReferences": [
+    "facepunch.v_usp",
+    "facepunch.w_usp",
+    "facepunch.w_m700",
+    "facepunch.v_first_person_arms_citizen"
+  ],
   "EditorReferences": null,
   "Mounts": null,
   "IsStandaloneOnly": false,

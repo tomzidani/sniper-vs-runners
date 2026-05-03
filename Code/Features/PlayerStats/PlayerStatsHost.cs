@@ -1,5 +1,6 @@
 namespace SniperVsRunners.Features.PlayerStats;
 
+using System;
 using Sandbox;
 
 /// <summary>
@@ -25,9 +26,28 @@ public static class PlayerStatsHost
 		if (_service == null)
 			return;
 
-		if (!Networking.IsActive || Networking.IsHost)
-			_service.SaveToDisk();
+		try
+		{
+			var shouldSave = false;
+			try
+			{
+				shouldSave = !Networking.IsActive || Networking.IsHost;
+			}
+			catch (Exception e)
+			{
+				Log.Warning(e, "Networking indisponible pendant PlayerStatsHost.Shutdown ; sauvegarde ignorée.");
+			}
 
-		_service = null;
+			if (shouldSave)
+				_service.SaveToDisk();
+		}
+		catch (Exception e)
+		{
+			Log.Error(e, "Échec de la sauvegarde des stats joueur à l’arrêt de la session.");
+		}
+		finally
+		{
+			_service = null;
+		}
 	}
 }

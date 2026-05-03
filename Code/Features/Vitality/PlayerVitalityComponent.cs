@@ -3,6 +3,7 @@ namespace SniperVsRunners.Features.Vitality;
 using System;
 using Sandbox;
 using SniperVsRunners.Features.Combat;
+using SniperVsRunners.Features.Inventory;
 using SniperVsRunners.Features.PlayerStats;
 using SniperVsRunners.Features.Weapons;
 using SniperVsRunners.Teams;
@@ -122,12 +123,35 @@ public sealed class PlayerVitalityComponent : Component
 		var rb = Components.Get<Rigidbody>();
 		if (rb != null)
 			rb.MotionEnabled = true;
+
+		Components.Get<PlayerInventoryComponent>()?.ServerClearForSpawn();
 	}
 
-	/// <summary>Applique un impact validé par l’hôte.</summary>
+	public void ServerApplyHeal(float amount)
+	{
+		if (!Networking.IsHost || IsDead || amount <= 0f)
+			return;
+
+		Health = Math.Min(MaxHealth, Health + amount);
+	}
+
+	public void ServerApplyExplosiveDamage(float damage, GameObject attackerRoot)
+	{
+		if (!Networking.IsHost || IsDead || damage <= 0f)
+			return;
+
+		if (attackerRoot.IsValid())
+			_lastDamageAttackerRoot = attackerRoot;
+
+		Health = Math.Max(0f, Health - damage);
+		if (Health <= 0f)
+			ServerDieFromDamage();
+	}
+
+	/// <summary>Applique un impact validé par l’hôte (dégâts pilotés par <see cref="WeaponDefinition"/>).</summary>
 	public void ServerApplyHit(
 		GameObject attackerRoot,
-		WeaponProfileKind weapon,
+		string weaponIdent,
 		BodyHitZone zone
 	)
 	{
@@ -150,67 +174,29 @@ public sealed class PlayerVitalityComponent : Component
 
 		_lastDamageAttackerRoot = attackerRoot;
 
-		switch (weapon)
+		var def = WeaponDefinition.Resolve(weaponIdent);
+		if (def == null)
 		{
-			case WeaponProfileKind.SniperRifle:
-				ApplySniperHit(zone);
-				break;
-			case WeaponProfileKind.Sidearm:
-			default:
-				ApplySidearmHit(zone);
-				break;
+			Log.Warning($"Arme inconnue pour dégâts : '{weaponIdent}'");
+			return;
 		}
-	}
 
-	void ApplySniperHit(BodyHitZone zone)
-	{
-		if (zone is BodyHitZone.Head or BodyHitZone.Torso)
+		var o = WeaponHitResolver.Compute(def, zone);
+
+		if (o.InstantKill)
 		{
 			Health = 0f;
 			ServerDieFromDamage();
 			return;
 		}
 
-		if (zone == BodyHitZone.Leg)
-		{
-			Health = Math.Max(0f, Health - 70f);
-			AddLegInjury(2);
-			AddBleedContribution(9f);
-			if (Health <= 0f)
-				ServerDieFromDamage();
-			return;
-		}
+		Health = Math.Max(0f, Health - o.HealthDamage);
 
-		// Membre supérieur : blessure lourde, pas de boiterie.
-		Health = Math.Max(0f, Health - 52f);
-		AddBleedContribution(7f);
-		if (Health <= 0f)
-			ServerDieFromDamage();
-	}
+		if (o.LegInjuryAdd > 0)
+			AddLegInjury(o.LegInjuryAdd);
 
-	void ApplySidearmHit(BodyHitZone zone)
-	{
-		var dmg = zone switch
-		{
-			BodyHitZone.Head => 55f,
-			BodyHitZone.Torso => 32f,
-			BodyHitZone.Arm => 26f,
-			_ => 22f
-		};
-
-		Health = Math.Max(0f, Health - dmg);
-
-		if (zone == BodyHitZone.Leg)
-			AddLegInjury(1);
-
-		var bleed = zone switch
-		{
-			BodyHitZone.Head => 4f,
-			BodyHitZone.Torso => 2.5f,
-			BodyHitZone.Arm => 2f,
-			_ => 1.5f
-		};
-		AddBleedContribution(bleed);
+		if (o.BleedPerSecondAdd > 0.001f)
+			AddBleedContribution(o.BleedPerSecondAdd);
 
 		if (Health <= 0f)
 			ServerDieFromDamage();
@@ -246,6 +232,7 @@ public sealed class PlayerVitalityComponent : Component
 		_bleedPerSecond = 0f;
 		PlayerStatsKillBridge.NotifyKillFromDamage(_lastDamageAttackerRoot, GameObject);
 		_lastDamageAttackerRoot = null;
+		Components.Get<PlayerInventoryComponent>()?.ServerDropAllToWorld();
 		ApplyDeathPresentation("dégâts");
 	}
 
@@ -258,6 +245,7 @@ public sealed class PlayerVitalityComponent : Component
 		_bleedPerSecond = 0f;
 		PlayerStatsKillBridge.NotifyKillFromDamage(_lastDamageAttackerRoot, GameObject);
 		_lastDamageAttackerRoot = null;
+		Components.Get<PlayerInventoryComponent>()?.ServerDropAllToWorld();
 		ApplyDeathPresentation("saignement");
 	}
 

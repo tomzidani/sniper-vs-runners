@@ -57,7 +57,7 @@ public sealed class PlayerAimHitPreviewComponent : Component
 			return;
 
 		var weapon = Components.Get<PlayerHitscanWeaponComponent>();
-		var maxRange = weapon != null ? weapon.MaxRange : MaxRangeFallback;
+		var maxRange = weapon != null ? weapon.EffectiveMaxRange : MaxRangeFallback;
 
 		if (!CombatAimTrace.TryTraceDamageableTarget(
 			    Scene,

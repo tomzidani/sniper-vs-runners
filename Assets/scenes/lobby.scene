@@ -431,7 +431,7 @@
     }
   },
   "ResourceVersion": 3,
-  "Title": null,
+  "Title": "Lobby",
   "Description": null,
   "__references": [],
   "__version": 3

@@ -3,6 +3,7 @@ namespace SniperVsRunners.Features.GameFlow;
 using System;
 using Sandbox;
 using SniperVsRunners.Components.Game;
+using SniperVsRunners.Features.Inventory;
 using SniperVsRunners.Features.MatchResults;
 using SniperVsRunners.Features.PlayerStats;
 using SniperVsRunners.Managers;
@@ -91,6 +92,7 @@ public sealed class MatchFlowComponent : Component
         {
             _pendingBeginMatchAfterScene = false;
             gm.BeginMatch();
+            InventoryPickupSpawner.SpawnDefaultPickupsIfHost();
             SessionPhase = MatchSessionPhase.InMatch;
             _matchElapsed = 0f;
             BannerTitle = "Partie en cours";
@@ -309,16 +311,34 @@ public sealed class MatchFlowComponent : Component
             return false;
 
         var want = NormalizeScenePath(GameplayScenePath);
+        var wantFile = SceneFileName(want);
+
         var src = scene.Source;
         if (src != null)
         {
             var path = NormalizeScenePath(src.ResourcePath);
-            if (!string.IsNullOrEmpty(path) && path.EndsWith(want, StringComparison.OrdinalIgnoreCase))
-                return true;
+            if (!string.IsNullOrEmpty(path))
+            {
+                if (path.EndsWith(want, StringComparison.OrdinalIgnoreCase))
+                    return true;
+                if (!string.IsNullOrEmpty(wantFile)
+                    && SceneFileName(path).Equals(wantFile, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
         }
 
         var title = scene.Name;
         return !string.IsNullOrEmpty(title) && title.Contains("play", StringComparison.OrdinalIgnoreCase);
+    }
+
+    static string SceneFileName(string normalizedPath)
+    {
+        if (string.IsNullOrEmpty(normalizedPath))
+            return string.Empty;
+        var i = normalizedPath.LastIndexOf('/');
+        return i >= 0 && i < normalizedPath.Length - 1
+            ? normalizedPath[(i + 1)..]
+            : normalizedPath;
     }
 
     bool IsLobbySceneActive()
@@ -328,12 +348,20 @@ public sealed class MatchFlowComponent : Component
             return false;
 
         var want = NormalizeScenePath(LobbyScenePath);
+        var wantFile = SceneFileName(want);
+
         var src = scene.Source;
         if (src != null)
         {
             var path = NormalizeScenePath(src.ResourcePath);
-            if (!string.IsNullOrEmpty(path) && path.EndsWith(want, StringComparison.OrdinalIgnoreCase))
-                return true;
+            if (!string.IsNullOrEmpty(path))
+            {
+                if (path.EndsWith(want, StringComparison.OrdinalIgnoreCase))
+                    return true;
+                if (!string.IsNullOrEmpty(wantFile)
+                    && SceneFileName(path).Equals(wantFile, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
         }
 
         var title = scene.Name;

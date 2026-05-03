@@ -169,7 +169,7 @@
       {
         "__type": "Sandbox.Dresser",
         "__guid": "d77ed5f8-3788-461a-822b-d775060171f7",
-        "__enabled": true,
+        "__enabled": false,
         "Flags": 0,
         "ApplyHeightScale": true,
         "BodyTarget": {
@@ -188,8 +188,8 @@
         "OnComponentFixedUpdate": null,
         "OnComponentStart": null,
         "OnComponentUpdate": null,
-        "RemoveUnownedItems": true,
-        "Source": "OwnerConnection",
+        "RemoveUnownedItems": false,
+        "Source": "Manual",
         "WorkshopItems": []
       },
       {
@@ -197,7 +197,6 @@
         "__guid": "a1b2c3d4-e5f6-4789-a012-345678901234",
         "__enabled": true,
         "Flags": 0,
-        "Team": "Spectators",
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -210,9 +209,6 @@
         "__guid": "b2c3d4e5-f6a7-4890-b123-456789012345",
         "__enabled": true,
         "Flags": 0,
-        "ActiveProfile": "Sidearm",
-        "FireCooldownSeconds": 0.35,
-        "MaxRange": 10000,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -226,27 +222,22 @@
         "__enabled": true,
         "Flags": 0,
         "MaxRangeFallback": 10000,
-        "RestrictPreviewToInMatch": false,
-        "ShowPreview": true,
-        "ShowZoneLabel": true,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
         "OnComponentFixedUpdate": null,
         "OnComponentStart": null,
-        "OnComponentUpdate": null
+        "OnComponentUpdate": null,
+        "RestrictPreviewToInMatch": false,
+        "ShowPreview": true,
+        "ShowZoneLabel": true
       },
       {
         "__type": "SniperVsRunners.Features.Vitality.PlayerVitalityComponent",
         "__guid": "c3d4e5f6-a7b8-4901-c234-567890123456",
         "__enabled": true,
         "Flags": 0,
-        "BloodTrauma": 0,
         "BloodTraumaMax": 100,
-        "Health": 100,
-        "IsDead": false,
-        "LastDeathMessage": "",
-        "LegInjuryTier": 0,
         "MaxHealth": 100,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
@@ -302,7 +293,21 @@
         "__guid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
         "__enabled": true,
         "Flags": 0,
-        "ShowHud": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "ShowHud": true
+      },
+      {
+        "__type": "SniperVsRunners.Features.Weapons.PlayerCitizenWeaponVisualComponent",
+        "__guid": "1a2b3c4d-5e6f-7890-abcd-ef123456789a",
+        "__enabled": true,
+        "Flags": 0,
+        "BonemergeCitizenFirstPersonArms": true,
+        "ForceDisableFirstPersonViewmodel": false,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -372,6 +377,70 @@
             },
             "Tint": "1,1,1,1",
             "UseAnimGraph": true
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "7f8e9d0c-1b2a-433c-9d8e-0f1a2b3c4d5e",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "HeldWeapon",
+        "Position": "5,18,2",
+        "Rotation": "0,0.707106769,0,0.707106769",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "8e9d0c1b-2a3c-444d-ae9f-1a2b3c4d5e6f",
+            "__enabled": true,
+            "Flags": 0,
+            "AnimationGraph": null,
+            "BodyGroups": 23,
+            "BoneMergeTarget": null,
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "LodOverride": null,
+            "MaterialGroup": "default",
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": "models/weapons/sbox_pistol_usp/w_usp.vmdl",
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {
+              "bools": {},
+              "ints": {},
+              "floats": {},
+              "vectors": {},
+              "rotations": {}
+            },
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": false
           }
         ],
         "Children": []
@@ -448,13 +517,36 @@
         ],
         "Children": []
       }
-    ]
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
   },
   "ResourceVersion": 2,
   "ShowInMenu": false,
   "MenuPath": null,
   "MenuIcon": null,
   "DontBreakAsTemplate": false,
-  "__references": [],
+  "__references": [
+    "facepunch.w_usp#152497"
+  ],
   "__version": 2
 }

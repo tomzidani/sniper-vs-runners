@@ -1,5 +1,6 @@
 namespace SniperVsRunners.Features.PlayerStats;
 
+using System;
 using System.Collections.Generic;
 using Sandbox;
 
@@ -36,6 +37,8 @@ public sealed class FileSystemPlayerStatsStore
 	public void Save(IReadOnlyDictionary<string, PlayerStatsRecord> records)
 	{
 		var dto = new PlayerStatsFileDto { Version = 1 };
+		dto.Entries ??= new List<PlayerStatsLineDto>();
+
 		foreach (var kv in records)
 		{
 			if (string.IsNullOrEmpty(kv.Key))
@@ -50,6 +53,13 @@ public sealed class FileSystemPlayerStatsStore
 			});
 		}
 
-		FileSystem.Data.WriteJson(FileName, dto);
+		try
+		{
+			FileSystem.Data.WriteJson(FileName, dto);
+		}
+		catch (Exception e)
+		{
+			Log.Error(e, $"Impossible d’écrire {FileName} sous FileSystem.Data.");
+		}
 	}
 }
