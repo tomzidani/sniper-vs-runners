@@ -165,23 +165,33 @@ public partial class WeaponDefinition : GameResource
 	[Property, Group("FX — Tracer")]
 	public float TracerSegmentWorldLength { get; set; } = 22f;
 
-	// --- FX (muzzle flash) ---
+	// --- FX (muzzle flash) — uniquement prefab ; rendu = contenu du prefab ---
 
+	/// <summary>
+	/// Prefab racine à cloner au point d’émission (particules, sprite, etc.). Vide = pas de flash de bouche.
+	/// </summary>
+	[ResourceType("prefab")]
 	[Property, Group("FX — Muzzle flash")]
-	public bool MuzzleFlashEnabled { get; set; } = true;
+	public string MuzzleFlashPrefab { get; set; } = "";
 
+	/// <summary>
+	/// Décalage dans l’espace <strong>local du HeldVisual 1P</strong> (mesh viewmodel). Le clone du flash est enfant de <c>FirstPersonHeldWeapon</c> ;
+	/// cette valeur positionne le canon par rapport au mesh.
+	/// </summary>
 	[Property, Group("FX — Muzzle flash")]
-	public float MuzzleFlashDuration { get; set; } = 0.045f;
+	public Vector3 MuzzleFlashFirstPersonLocalOffset { get; set; }
 
+	/// <summary>Rotation monde du flash au tir : appliquée après alignement sur la direction du tir (<c>LookAt</c> × ces angles).</summary>
 	[Property, Group("FX — Muzzle flash")]
-	public float MuzzleFlashScale { get; set; } = 0.55f;
+	public Angles MuzzleFlashFirstPersonLocalAngles { get; set; }
 
+	/// <summary>Décalage dans l’espace <strong>local du HeldVisual monde</strong> (mesh <c>HeldWeapon</c> / 3P).</summary>
 	[Property, Group("FX — Muzzle flash")]
-	public Color MuzzleFlashColor { get; set; } = new Color(1f, 0.88f, 0.45f, 0.95f);
+	public Vector3 MuzzleFlashThirdPersonLocalOffset { get; set; }
 
-	/// <summary>Décalage local depuis le point muzzle résolu (fallback visuel).</summary>
+	/// <summary>Rotation monde du flash au tir (3P), même convention que la 1P.</summary>
 	[Property, Group("FX — Muzzle flash")]
-	public Vector3 MuzzleFlashLocalOffset { get; set; }
+	public Angles MuzzleFlashThirdPersonLocalAngles { get; set; }
 
 	// --- World visual (third person) ---
 

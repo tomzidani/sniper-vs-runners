@@ -111,14 +111,20 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		if (_weaponRoot.IsValid())
 			_weaponRoot.Enabled = true;
 
+		// FX tir / reload : avant _visualReady pour que les proxies clients ne ratent pas le sync (arme déjà tirée pendant le montage visuel).
+		if (weapon != null)
+		{
+			var identFx = string.IsNullOrWhiteSpace(weapon.ActiveWeaponIdent) ? "usp" : weapon.ActiveWeaponIdent.Trim();
+			var defFx = WeaponDefinition.Resolve(identFx);
+			TryConsumePrimaryFireFx(weapon, defFx);
+			TryConsumeReloadFx(weapon, defFx);
+		}
+
 		if (!_visualReady || weapon == null)
 			return;
 
 		var ident = string.IsNullOrWhiteSpace(weapon.ActiveWeaponIdent) ? "usp" : weapon.ActiveWeaponIdent.Trim();
 		var def = WeaponDefinition.Resolve(ident);
-
-		TryConsumePrimaryFireFx(weapon, def);
-		TryConsumeReloadFx(weapon, def);
 
 		if (ident != _lastWeaponIdent)
 		{
@@ -290,15 +296,17 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 			var eye = pcFx?.EyePosition ?? GameObject.WorldPosition;
 			var start = ResolveTracerStartWorld(pcFx, def, tracerStartWorld, eye);
 			var dir = tracerDirectionWorld.Length > 0.001f ? tracerDirectionWorld.Normal : (tracerEndWorld - start).Normal;
-			var right = Vector3.Cross(dir, Vector3.Up);
-			if (right.Length < 0.001f)
-				right = Vector3.Cross(dir, Vector3.Right);
-			right = right.Normal;
-			var up = Vector3.Cross(right, dir).Normal;
-			var muzzleOffset = right * def.MuzzleFlashLocalOffset.x + up * def.MuzzleFlashLocalOffset.y + dir * def.MuzzleFlashLocalOffset.z;
+
 			WeaponFx.PlayPrimaryFire(def, start);
 			WeaponTracerBeam.SpawnIfEnabled(Scene, start, tracerEndWorld, dir, def);
-			WeaponMuzzleFlashFx.SpawnIfEnabled(Scene, start + muzzleOffset, dir, def);
+
+			var useFp = pcFx != null && IsLocalPawn() && !pcFx.ThirdPerson && def.UseFirstPersonViewModel
+			           && _fpWeaponRoot.IsValid() && _fpWeaponVisualRoot.IsValid();
+			var follow = useFp ? _fpWeaponRoot : (_weaponRoot.IsValid() ? _weaponRoot : null);
+			var basis = useFp ? _fpWeaponVisualRoot : (_weaponVisualRoot.IsValid() ? _weaponVisualRoot : null);
+			var localPos = useFp ? def.MuzzleFlashFirstPersonLocalOffset : def.MuzzleFlashThirdPersonLocalOffset;
+			var localAng = useFp ? def.MuzzleFlashFirstPersonLocalAngles : def.MuzzleFlashThirdPersonLocalAngles;
+			WeaponMuzzleFlashFx.SpawnIfEnabled(Scene, def, follow, basis, localPos, localAng, dir, start);
 		}
 	}
 

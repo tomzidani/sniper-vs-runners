@@ -24,6 +24,8 @@
           "Flags": 0,
           "BeginMatchWhenSceneStarts": false,
           "CreateLobbyIfNone": true,
+          "DevEveryonePrimary": null,
+          "DevForceEveryonePistol": true,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -34,6 +36,8 @@
             "_type": "gameobject",
             "prefab": "prefabs/player/player.prefab"
           },
+          "RunnerPrimary": null,
+          "SniperPrimary": null,
           "SpawnTransformFallback": null
         },
         {
@@ -43,13 +47,16 @@
           "Flags": 0,
           "CountdownDurationSeconds": 5,
           "GameplayScenePath": "scenes/play.scene",
+          "LobbyScenePath": "scenes/lobby.scene",
+          "MatchDurationSeconds": 180,
           "MinPlayersToStart": 2,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
           "OnComponentFixedUpdate": null,
           "OnComponentStart": null,
-          "OnComponentUpdate": null
+          "OnComponentUpdate": null,
+          "ReturnToLobbyDelaySeconds": 4
         },
         {
           "__type": "Sandbox.ScreenPanel",
@@ -415,23 +422,23 @@
       "CustomBounds": false
     },
     "GameObjectSystems": {
+      "Sandbox.MovieMaker.MovieRecorderSystem": {
+        "DisableClientRecording": false
+      },
+      "Sandbox.Clutter.ClutterGridSystem": {
+        "Storage": {
+          "$blob": "c81e323d-043c-4fce-ac0c-788fe50bee7d"
+        }
+      },
       "Sandbox.SelectionSetsSystem": {
         "Data": {
           "SelectionSets": []
         }
-      },
-      "Sandbox.Clutter.ClutterGridSystem": {
-        "Storage": {
-          "$blob": "3a4cffe0-108f-4bca-ab1c-d751d6cf91ca"
-        }
-      },
-      "Sandbox.MovieMaker.MovieRecorderSystem": {
-        "DisableClientRecording": false
       }
     }
   },
   "ResourceVersion": 3,
-  "Title": "Lobby",
+  "Title": null,
   "Description": null,
   "__references": [],
   "__version": 3
