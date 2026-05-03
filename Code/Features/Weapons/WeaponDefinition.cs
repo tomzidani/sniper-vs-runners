@@ -46,6 +46,26 @@ public partial class WeaponDefinition : GameResource
 	[Property, Group("Combat")]
 	public DamageStyleKind DamageStyle { get; set; } = DamageStyleKind.PistolZones;
 
+	// --- Ammo ---
+
+	[Property, Group("Ammo")]
+	public int MagazineSize { get; set; } = 12;
+
+	/// <summary>Munitions hors chargeur à l’équipement / au spawn (ignoré si <see cref="InfiniteReserve"/>).</summary>
+	[Property, Group("Ammo")]
+	public int StartingReserveAmmo { get; set; } = 36;
+
+	[Property, Group("Ammo")]
+	public float ReloadTimeSeconds { get; set; } = 1.75f;
+
+	/// <summary>Si vrai : la réserve est illimitée (HUD « ∞ ») ; le rechargement remplit toujours le chargeur.</summary>
+	[Property, Group("Ammo")]
+	public bool InfiniteReserve { get; set; }
+
+	/// <summary>Après le dernier tir du chargeur, tente un rechargement automatique si la réserve le permet.</summary>
+	[Property, Group("Ammo")]
+	public bool AutoReloadWhenEmpty { get; set; } = true;
+
 	// --- Damage — Pistol zones ---
 
 	[Property, Group("Damage — Pistol zones")]
@@ -166,6 +186,53 @@ public partial class WeaponDefinition : GameResource
 	[ResourceType("vmdl")]
 	[Property, Group("Citizen animation")]
 	public string CitizenFpArmsModel { get; set; } = "models/first_person/v_first_person_arms_citizen.vmdl";
+
+	// --- Animation — Citizen body (third person & graphe corps) ---
+
+	/// <summary>
+	/// Pousse sur le <c>SkinnedModelRenderer</c> du Citizen (corps) les paramètres de locomotion / arme du graphe officiel
+	/// (<c>move_bob</c>, <c>b_twohanded</c>, etc.). Indispensable en 3P pour que le squelette suive marche + type d’arme.
+	/// Le tir réseau utilise <see cref="BodyPrimaryFireParameterName"/> via <see cref="PlayerHitscanWeaponComponent.FireFxSequence"/>.
+	/// </summary>
+	[Property, Group("Animation — Citizen body")]
+	public bool DriveCitizenBodyAnimGraph { get; set; } = true;
+
+	/// <summary>Bool déclenché sur le graphe du corps à chaque tir (sync hôte). Graphe Citizen standard : <c>b_attack</c>.</summary>
+	[Property, Group("Animation — Citizen body")]
+	public string BodyPrimaryFireParameterName { get; set; } = "b_attack";
+
+	// --- Animation — World weapon mesh ---
+
+	/// <summary>
+	/// Si l’arme monde utilise un anim graph : pousse aussi le bool de tir sur ce renderer (ex. culasse). Désactivé par défaut pour les <c>w_*</c> en séquence seule.
+	/// </summary>
+	[Property, Group("Animation — World weapon")]
+	public bool DriveWorldWeaponPrimaryFireParameter { get; set; }
+
+	/// <summary>Nom du paramètre sur le mesh monde (si <see cref="DriveWorldWeaponPrimaryFireParameter"/>).</summary>
+	[Property, Group("Animation — World weapon")]
+	public string WorldWeaponPrimaryFireParameterName { get; set; } = "b_attack";
+
+	// --- Animation — Reload ---
+
+	[Property, Group("Animation — Reload")]
+	public bool DriveBodyReloadParameter { get; set; } = true;
+
+	[Property, Group("Animation — Reload")]
+	public string BodyReloadParameterName { get; set; } = "b_reload";
+
+	[Property, Group("Animation — Reload")]
+	public bool DriveWorldWeaponReloadParameter { get; set; }
+
+	[Property, Group("Animation — Reload")]
+	public string WorldWeaponReloadParameterName { get; set; } = "b_reload";
+
+	/// <summary>Pulse bool reload sur le viewmodel 1P (en plus du sync <c>ReloadFxSequence</c>) pour réduire la latence locale.</summary>
+	[Property, Group("Animation — Reload")]
+	public bool DriveFirstPersonReloadParameter { get; set; } = true;
+
+	[Property, Group("Animation — Reload")]
+	public string FirstPersonReloadParameterName { get; set; } = "b_reload";
 
 	// --- First person visual ---
 

@@ -208,7 +208,11 @@ public sealed class PlayerInventoryComponent : Component
 			{
 				var hit = Components.Get<PlayerHitscanWeaponComponent>();
 				if (hit != null)
+				{
 					hit.ActiveWeaponIdent = "usp";
+					hit.HostApplyEquippedWeaponAmmo();
+				}
+
 				break;
 			}
 
@@ -216,7 +220,11 @@ public sealed class PlayerInventoryComponent : Component
 			{
 				var hit = Components.Get<PlayerHitscanWeaponComponent>();
 				if (hit != null)
+				{
 					hit.ActiveWeaponIdent = "m700";
+					hit.HostApplyEquippedWeaponAmmo();
+				}
+
 				break;
 			}
 		}

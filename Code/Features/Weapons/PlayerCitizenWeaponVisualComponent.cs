@@ -69,6 +69,9 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 	TeamTypes _lastCombatTeam = TeamTypes.Spectators;
 	bool _visualReady;
 	bool _fpGraphPrimed;
+	bool _bodyWeaponGraphDeployPrimed;
+	uint _lastSeenFireFxSequence;
+	uint _lastSeenReloadFxSequence;
 
 	protected override void OnStart()
 	{
@@ -113,10 +116,15 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 
 		var ident = string.IsNullOrWhiteSpace(weapon.ActiveWeaponIdent) ? "usp" : weapon.ActiveWeaponIdent.Trim();
 		var def = WeaponDefinition.Resolve(ident);
+
+		TryConsumePrimaryFireFx(weapon, def);
+		TryConsumeReloadFx(weapon, def);
+
 		if (ident != _lastWeaponIdent)
 		{
 			_lastWeaponIdent = ident;
 			_fpGraphPrimed = false;
+			_bodyWeaponGraphDeployPrimed = false;
 			ApplyWeaponModel(def, ident);
 			TrySetupWorldArmsBonemerge(def);
 			ApplyFirstPersonWeaponModel(def, ident);
@@ -131,6 +139,7 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		{
 			_lastCombatTeam = team;
 			_fpGraphPrimed = false;
+			_bodyWeaponGraphDeployPrimed = false;
 		}
 
 		if (_weaponVisualRoot.IsValid())
@@ -156,9 +165,184 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		var activeDef = weapon.ResolveActiveDefinition();
 		UpdateFirstPersonPresentation(pc, activeDef, combat);
 
+		var bodyRenderer = CitizenBodySkinned;
+		if (activeDef != null
+		    && activeDef.DriveCitizenBodyAnimGraph
+		    && bodyRenderer != null
+		    && bodyRenderer.IsValid()
+		    && bodyRenderer.UseAnimGraph)
+			UpdateCitizenBodyWeaponAnimGraph(bodyRenderer, pc, activeDef);
+
 		var animTarget = GetActiveFpSkinnedForAnimGraph(pc, activeDef);
 		if (animTarget.IsValid() && activeDef != null && animTarget.UseAnimGraph && ShouldDriveWeaponAnimGraph(animTarget, activeDef, pc))
 			UpdateCitizenFpWeaponAnimGraph(animTarget, pc, activeDef);
+	}
+
+	SkinnedModelRenderer CitizenBodySkinned => _bodySkinned != null && _bodySkinned.IsValid() ? _bodySkinned : _anim?.Target;
+
+	void TryConsumePrimaryFireFx(PlayerHitscanWeaponComponent weapon, WeaponDefinition def)
+	{
+		if (weapon == null)
+			return;
+
+		var seq = weapon.FireFxSequence;
+		if (seq == _lastSeenFireFxSequence)
+			return;
+
+		_lastSeenFireFxSequence = seq;
+		ApplyPrimaryFireAnimPulse(def);
+	}
+
+	/// <summary>
+	/// Appelé sur la machine autoritaire juste après l’incrément de <see cref="PlayerHitscanWeaponComponent.FireFxSequence"/> pour éviter un délai d’une frame avant le pulse d’anim.
+	/// Les proxies se mettent à jour via <see cref="TryConsumePrimaryFireFx"/>.
+	/// </summary>
+	public void OnAuthorityPrimaryFireFx(uint sequence, WeaponDefinition def)
+	{
+		_lastSeenFireFxSequence = sequence;
+		ApplyPrimaryFireAnimPulse(def);
+	}
+
+	void TryConsumeReloadFx(PlayerHitscanWeaponComponent weapon, WeaponDefinition def)
+	{
+		if (weapon == null)
+			return;
+
+		var seq = weapon.ReloadFxSequence;
+		if (seq == _lastSeenReloadFxSequence)
+			return;
+
+		_lastSeenReloadFxSequence = seq;
+		ApplyReloadAnimPulse(def);
+	}
+
+	/// <summary>
+	/// Comme <see cref="OnAuthorityPrimaryFireFx"/> : exécution immédiate côté hôte après incrément de <see cref="PlayerHitscanWeaponComponent.ReloadFxSequence"/>.
+	/// </summary>
+	public void OnAuthorityReloadFx(uint sequence, WeaponDefinition def)
+	{
+		_lastSeenReloadFxSequence = sequence;
+		ApplyReloadAnimPulse(def);
+	}
+
+	void ApplyReloadAnimPulse(WeaponDefinition def)
+	{
+		if (def == null)
+			return;
+
+		var body = CitizenBodySkinned;
+		if (def.DriveBodyReloadParameter
+		    && body != null && body.IsValid() && body.UseAnimGraph)
+		{
+			var bodyParam = string.IsNullOrWhiteSpace(def.BodyReloadParameterName)
+				? "b_reload"
+				: def.BodyReloadParameterName.Trim();
+			body.Parameters.Set(bodyParam, true);
+		}
+
+		if (def.DriveWorldWeaponReloadParameter
+		    && _weaponSkinned.IsValid()
+		    && _weaponSkinned.UseAnimGraph)
+		{
+			var wParam = string.IsNullOrWhiteSpace(def.WorldWeaponReloadParameterName)
+				? "b_reload"
+				: def.WorldWeaponReloadParameterName.Trim();
+			_weaponSkinned.Parameters.Set(wParam, true);
+		}
+	}
+
+	void ApplyPrimaryFireAnimPulse(WeaponDefinition def)
+	{
+		var body = CitizenBodySkinned;
+		var bodyParam = string.IsNullOrWhiteSpace(def?.BodyPrimaryFireParameterName)
+			? "b_attack"
+			: def.BodyPrimaryFireParameterName.Trim();
+
+		if (body != null && body.IsValid() && body.UseAnimGraph)
+			body.Parameters.Set(bodyParam, true);
+
+		if (def != null
+		    && def.DriveWorldWeaponPrimaryFireParameter
+		    && _weaponSkinned.IsValid()
+		    && _weaponSkinned.UseAnimGraph)
+		{
+			var wParam = string.IsNullOrWhiteSpace(def.WorldWeaponPrimaryFireParameterName)
+				? "b_attack"
+				: def.WorldWeaponPrimaryFireParameterName.Trim();
+			_weaponSkinned.Parameters.Set(wParam, true);
+		}
+	}
+
+	void ApplyCitizenStyleAnimGraphLocomotion(SkinnedModelRenderer.ParameterAccessor p, PlayerController pc, WeaponDefinition def)
+	{
+		p.Set("skeleton", 1);
+		p.Set("b_grounded", pc.IsOnGround);
+		p.Set("b_jump", false);
+
+		var horiz = pc.Velocity.WithZ(0).Length;
+		var run = Math.Max(1f, pc.RunSpeed);
+		p.Set("move_bob", Math.Clamp(horiz / run, 0f, 1f));
+		p.Set("b_sprint", horiz > run * 0.82f);
+
+		if (IsLocalPawn())
+		{
+			var m = Input.AnalogMove;
+			p.Set("move_x", m.x);
+			p.Set("move_y", m.y);
+			p.Set("move_z", m.z);
+		}
+		else
+		{
+			p.Set("move_x", 0f);
+			p.Set("move_y", 0f);
+			p.Set("move_z", 0f);
+		}
+
+		var twoHanded = def != null && def.CitizenHold == WeaponDefinition.CitizenHoldKind.Rifle;
+		p.Set("b_twohanded", twoHanded);
+		p.Set("b_lower_weapon", false);
+	}
+
+	static void TryPrimeWeaponDeployOnGraph(SkinnedModelRenderer.ParameterAccessor p, ref bool deployPrimed)
+	{
+		if (deployPrimed)
+			return;
+
+		deployPrimed = true;
+		p.Set("deploy_type", 1);
+		p.Set("b_deploy_skip", true);
+	}
+
+	void UpdateCitizenBodyWeaponAnimGraph(SkinnedModelRenderer body, PlayerController pc, WeaponDefinition def)
+	{
+		if (!body.IsValid() || pc == null || def == null)
+			return;
+
+		var p = body.Parameters;
+		ApplyCitizenStyleAnimGraphLocomotion(p, pc, def);
+		TryPrimeWeaponDeployOnGraph(p, ref _bodyWeaponGraphDeployPrimed);
+	}
+
+	void UpdateCitizenFpWeaponAnimGraph(SkinnedModelRenderer skinned, PlayerController pc, WeaponDefinition def)
+	{
+		if (!skinned.IsValid())
+			return;
+
+		var p = skinned.Parameters;
+		ApplyCitizenStyleAnimGraphLocomotion(p, pc, def);
+
+		if (IsLocalPawn() && Input.Pressed("Attack1"))
+			p.Set("b_attack", true);
+
+		if (def.DriveFirstPersonReloadParameter && IsLocalPawn() && Input.Pressed("Reload"))
+		{
+			var rp = string.IsNullOrWhiteSpace(def.FirstPersonReloadParameterName)
+				? "b_reload"
+				: def.FirstPersonReloadParameterName.Trim();
+			p.Set(rp, true);
+		}
+
+		TryPrimeWeaponDeployOnGraph(p, ref _fpGraphPrimed);
 	}
 
 	/// <summary>
@@ -745,51 +929,6 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		model = vm;
 		useAnimGraph = true;
 		return true;
-	}
-
-	void UpdateCitizenFpWeaponAnimGraph(SkinnedModelRenderer skinned, PlayerController pc, WeaponDefinition def)
-	{
-		if (!skinned.IsValid())
-			return;
-
-		var p = skinned.Parameters;
-
-		p.Set("skeleton", 1);
-		p.Set("b_grounded", pc.IsOnGround);
-		p.Set("b_jump", false);
-
-		var horiz = pc.Velocity.WithZ(0).Length;
-		var run = Math.Max(1f, pc.RunSpeed);
-		p.Set("move_bob", Math.Clamp(horiz / run, 0f, 1f));
-		p.Set("b_sprint", horiz > run * 0.82f);
-
-		if (IsLocalPawn())
-		{
-			var m = Input.AnalogMove;
-			p.Set("move_x", m.x);
-			p.Set("move_y", m.y);
-			p.Set("move_z", m.z);
-
-			if (Input.Pressed("Attack1"))
-				p.Set("b_attack", true);
-		}
-		else
-		{
-			p.Set("move_x", 0f);
-			p.Set("move_y", 0f);
-			p.Set("move_z", 0f);
-		}
-
-		var twoHanded = def != null && def.CitizenHold == WeaponDefinition.CitizenHoldKind.Rifle;
-		p.Set("b_twohanded", twoHanded);
-		p.Set("b_lower_weapon", false);
-
-		if (!_fpGraphPrimed)
-		{
-			_fpGraphPrimed = true;
-			p.Set("deploy_type", 1);
-			p.Set("b_deploy_skip", true);
-		}
 	}
 
 	/// <summary>Bonemerge bras sur le mesh <strong>monde</strong> (uniquement si pas de viewmodel 1P dédié).</summary>
