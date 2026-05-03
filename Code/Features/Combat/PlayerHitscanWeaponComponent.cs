@@ -98,10 +98,20 @@ public partial class PlayerHitscanWeaponComponent : Component
 
 		if (Input.Pressed("Reload"))
 		{
-			if (!Networking.IsActive)
-				TryStartReloadAsAuthority();
-			else
-				HostRequestReload();
+			var reloadDef = ResolveActiveDefinition();
+			if (reloadDef != null)
+			{
+				var cap = Math.Max(0, reloadDef.MagazineSize);
+				if (AmmoInMag < cap
+				    && (reloadDef.InfiniteReserve || AmmoReserve > 0)
+				    && !IsReloading)
+				{
+					if (!Networking.IsActive)
+						TryStartReloadAsAuthority();
+					else
+						HostRequestReload();
+				}
+			}
 		}
 
 		if (!Input.Pressed("Attack1"))

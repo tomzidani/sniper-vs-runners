@@ -249,6 +249,8 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 				: def.WorldWeaponReloadParameterName.Trim();
 			_weaponSkinned.Parameters.Set(wParam, true);
 		}
+
+		TryPulseFirstPersonReload(def);
 	}
 
 	void ApplyPrimaryFireAnimPulse(WeaponDefinition def)
@@ -271,6 +273,55 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 				: def.WorldWeaponPrimaryFireParameterName.Trim();
 			_weaponSkinned.Parameters.Set(wParam, true);
 		}
+
+		TryPulseFirstPersonPrimaryFire(def);
+	}
+
+	/// <summary>Tir 1P : uniquement quand <see cref="PlayerHitscanWeaponComponent.FireFxSequence"/> augmente (pas sur chaque clic si cadence bloque).</summary>
+	void TryPulseFirstPersonPrimaryFire(WeaponDefinition def)
+	{
+		if (def == null || !IsLocalPawn() || !def.UseFirstPersonViewModel)
+			return;
+
+		var pc = Components.Get<PlayerController>();
+		if (!ShouldDriveFirstPersonWeaponAnimGraph(def, pc))
+			return;
+
+		if (!_fpWeaponSkinned.IsValid() || !_fpWeaponSkinned.UseAnimGraph)
+			return;
+
+		var fpParam = string.IsNullOrWhiteSpace(def.BodyPrimaryFireParameterName)
+			? "b_attack"
+			: def.BodyPrimaryFireParameterName.Trim();
+		_fpWeaponSkinned.Parameters.Set(fpParam, true);
+	}
+
+	/// <summary>Reload 1P : même source que le corps (séquence sync), y compris rechargement auto à chargeur vide.</summary>
+	void TryPulseFirstPersonReload(WeaponDefinition def)
+	{
+		if (def == null || !def.DriveFirstPersonReloadParameter || !IsLocalPawn() || !def.UseFirstPersonViewModel)
+			return;
+
+		var pc = Components.Get<PlayerController>();
+		if (!ShouldDriveFirstPersonWeaponAnimGraph(def, pc))
+			return;
+
+		if (!_fpWeaponSkinned.IsValid() || !_fpWeaponSkinned.UseAnimGraph)
+			return;
+
+		var rp = string.IsNullOrWhiteSpace(def.FirstPersonReloadParameterName)
+			? "b_reload"
+			: def.FirstPersonReloadParameterName.Trim();
+		_fpWeaponSkinned.Parameters.Set(rp, true);
+	}
+
+	/// <summary>Aligné sur <see cref="ShouldDriveWeaponAnimGraph"/> lorsque le graphe cible est le viewmodel 1P.</summary>
+	bool ShouldDriveFirstPersonWeaponAnimGraph(WeaponDefinition def, PlayerController pc)
+	{
+		if (pc == null || pc.ThirdPerson || !_fpWeaponSkinned.IsValid())
+			return false;
+
+		return def.FirstPersonDriveAnimGraphParameters || def.UseCitizenFpAnimParameters;
 	}
 
 	void ApplyCitizenStyleAnimGraphLocomotion(SkinnedModelRenderer.ParameterAccessor p, PlayerController pc, WeaponDefinition def)
@@ -330,17 +381,6 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 
 		var p = skinned.Parameters;
 		ApplyCitizenStyleAnimGraphLocomotion(p, pc, def);
-
-		if (IsLocalPawn() && Input.Pressed("Attack1"))
-			p.Set("b_attack", true);
-
-		if (def.DriveFirstPersonReloadParameter && IsLocalPawn() && Input.Pressed("Reload"))
-		{
-			var rp = string.IsNullOrWhiteSpace(def.FirstPersonReloadParameterName)
-				? "b_reload"
-				: def.FirstPersonReloadParameterName.Trim();
-			p.Set(rp, true);
-		}
 
 		TryPrimeWeaponDeployOnGraph(p, ref _fpGraphPrimed);
 	}
