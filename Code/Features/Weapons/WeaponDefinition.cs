@@ -175,6 +175,13 @@ public partial class WeaponDefinition : GameResource
 	public string MuzzleFlashPrefab { get; set; } = "";
 
 	/// <summary>
+	/// Si vrai : le clone du flash <strong>n’est pas auto-détruit</strong> après le tir (aucun <c>TimedDestroyComponent</c>).
+	/// À activer seulement pour régler offsets / angles en jeu sous différentes vues ; laisser à <c>false</c> en production (sinon les clones s’accumulent).
+	/// </summary>
+	[Property, Group("FX — Muzzle flash")]
+	public bool MuzzleFlashPersistForTuning { get; set; }
+
+	/// <summary>
 	/// Décalage dans l’espace <strong>local du HeldVisual 1P</strong> (mesh viewmodel). Le clone du flash est enfant de <c>FirstPersonHeldWeapon</c> ;
 	/// cette valeur positionne le canon par rapport au mesh.
 	/// </summary>

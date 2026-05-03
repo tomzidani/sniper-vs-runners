@@ -2,6 +2,7 @@ namespace SniperVsRunners.Features.Combat;
 
 using System;
 using Sandbox;
+using SniperVsRunners.Components.Game;
 using SniperVsRunners.Features.GameFlow;
 using SniperVsRunners.Features.Vitality;
 using SniperVsRunners.Features.Weapons;
@@ -327,13 +328,8 @@ public partial class PlayerHitscanWeaponComponent : Component
 
 	bool CanUseWeaponThisFrame()
 	{
-		var flow = MatchFlowComponent.Current;
-		if (flow != null)
-		{
-			if (flow.SessionPhase != MatchSessionPhase.InMatch
-			    && flow.SessionPhase != MatchSessionPhase.LoadingArena)
-				return false;
-		}
+		if (!GameComponent.AreWeaponsAndInventoryUnlockedForCurrentSession())
+			return false;
 
 		var info = Components.Get<PlayerCombatInfoComponent>();
 		if (info == null || info.Team == TeamTypes.Spectators)

@@ -10,11 +10,6 @@ using Sandbox;
 /// </summary>
 public static class WeaponMuzzleFlashFx
 {
-	/// <summary>
-	/// <b>Temporaire (debug)</b> : à <c>true</c>, le clone n’est plus auto-détruit — tu peux le sélectionner dans la Hierarchy après un tir.
-	/// </summary>
-	public const bool KeepMuzzleFlashCloneForInspection = false;
-
 	const float PrefabInstanceDestroyHoldSeconds = 0.35f;
 
 	const string MuzzleFlashParticleSpriteResourcePath = "textures/fx/muzzle-flash/muzzle-flash.sprite";
@@ -46,6 +41,7 @@ public static class WeaponMuzzleFlashFx
 		var forward = shotForwardWorld.Length > 0.001f ? shotForwardWorld.Normal : Vector3.Forward;
 		SpawnPrefabFlash(
 			scene,
+			def,
 			followParent,
 			offsetBasisParent,
 			visualLocalOffset,
@@ -57,6 +53,7 @@ public static class WeaponMuzzleFlashFx
 
 	static void SpawnPrefabFlash(
 		Scene scene,
+		WeaponDefinition def,
 		GameObject followParent,
 		GameObject offsetBasisParent,
 		Vector3 visualLocalOffset,
@@ -115,7 +112,7 @@ public static class WeaponMuzzleFlashFx
 			return;
 		}
 
-		FinalizeMuzzleFxInstance(inst);
+		FinalizeMuzzleFxInstance(inst, def);
 	}
 
 	static List<string> BuildPrefabPathCandidates(string raw)
@@ -184,14 +181,14 @@ public static class WeaponMuzzleFlashFx
 		return false;
 	}
 
-	static void FinalizeMuzzleFxInstance(GameObject inst)
+	static void FinalizeMuzzleFxInstance(GameObject inst, WeaponDefinition def)
 	{
 		inst.NetworkMode = NetworkMode.Never;
 		ForceParticleEffectsFollowParentTransform(inst);
 		KickstartParticleHierarchy(inst);
 		RebindClonedParticleSprites(inst);
 
-		if (KeepMuzzleFlashCloneForInspection)
+		if (def != null && def.MuzzleFlashPersistForTuning)
 			return;
 
 		var life = inst.Components.Get<TimedDestroyComponent>();

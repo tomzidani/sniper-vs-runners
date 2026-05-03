@@ -33,6 +33,30 @@ public class GameComponent : Component, Component.INetworkListener
     [Property]
     public bool DevForceEveryonePistol { get; set; } = true;
 
+    /// <summary>
+    /// Si vrai : tir / rechargement hitscan, roue d’inventaire (Tab, slots) et HUD munitions actifs en lobby ou hors match
+    /// (attente joueurs, countdown, retour lobby, etc.) — pratique pour régler armes et muzzle sans lancer une partie à deux.
+    /// </summary>
+    [Property]
+    public bool DevAllowWeaponsInLobby { get; set; }
+
+    /// <summary>
+    /// Match ou chargement arène : toujours <c>true</c>. Autres phases : <c>true</c> seulement si <see cref="DevAllowWeaponsInLobby"/> est coché sur la session.
+    /// </summary>
+    public static bool AreWeaponsAndInventoryUnlockedForCurrentSession()
+    {
+        var session = Session;
+        var devLobby = session != null && session.DevAllowWeaponsInLobby;
+        var flow = MatchFlowComponent.Current;
+        if (flow == null)
+            return devLobby;
+
+        if (flow.SessionPhase == MatchSessionPhase.InMatch || flow.SessionPhase == MatchSessionPhase.LoadingArena)
+            return true;
+
+        return devLobby;
+    }
+
     /// <summary>Arme des runners (référence asset <c>.weapon</c>). Si null, ident <c>usp</c>.</summary>
     [Property]
     public WeaponDefinition RunnerPrimary { get; set; }

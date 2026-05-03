@@ -3,8 +3,8 @@ namespace SniperVsRunners.Features.Hud;
 using System;
 using Sandbox;
 using Sandbox.UI;
+using SniperVsRunners.Components.Game;
 using SniperVsRunners.Features.Combat;
-using SniperVsRunners.Features.GameFlow;
 using SniperVsRunners.Features.Inventory;
 using SniperVsRunners.Features.Vitality;
 using SniperVsRunners.Features.Weapons;
@@ -129,10 +129,7 @@ public partial class ItemWheelHud : PanelComponent
 			return;
 		}
 
-		var flow = MatchFlowComponent.Current;
-		if (flow != null
-		    && flow.SessionPhase != MatchSessionPhase.InMatch
-		    && flow.SessionPhase != MatchSessionPhase.LoadingArena)
+		if (!GameComponent.AreWeaponsAndInventoryUnlockedForCurrentSession())
 		{
 			_backdrop.Style.Display = DisplayMode.None;
 			_card.Style.Display = DisplayMode.None;

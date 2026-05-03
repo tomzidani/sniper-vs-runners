@@ -3,8 +3,8 @@ namespace SniperVsRunners.Features.Hud;
 using System;
 using Sandbox;
 using Sandbox.UI;
+using SniperVsRunners.Components.Game;
 using SniperVsRunners.Features.Combat;
-using SniperVsRunners.Features.GameFlow;
 using SniperVsRunners.Features.Vitality;
 using SniperVsRunners.Features.Weapons;
 
@@ -145,10 +145,7 @@ public sealed class PlayerWeaponAmmoHud : PanelComponent
 			return;
 		}
 
-		var flow = MatchFlowComponent.Current;
-		if (flow != null
-		    && flow.SessionPhase != MatchSessionPhase.InMatch
-		    && flow.SessionPhase != MatchSessionPhase.LoadingArena)
+		if (!GameComponent.AreWeaponsAndInventoryUnlockedForCurrentSession())
 		{
 			Panel.Style.Display = DisplayMode.None;
 			return;

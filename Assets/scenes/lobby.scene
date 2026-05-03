@@ -24,6 +24,7 @@
           "Flags": 0,
           "BeginMatchWhenSceneStarts": false,
           "CreateLobbyIfNone": true,
+          "DevAllowWeaponsInLobby": true,
           "DevEveryonePrimary": null,
           "DevForceEveryonePistol": true,
           "OnComponentDestroy": null,

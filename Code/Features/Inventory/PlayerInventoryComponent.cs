@@ -2,8 +2,8 @@ namespace SniperVsRunners.Features.Inventory;
 
 using System;
 using Sandbox;
+using SniperVsRunners.Components.Game;
 using SniperVsRunners.Features.Combat;
-using SniperVsRunners.Features.GameFlow;
 using SniperVsRunners.Features.Vitality;
 
 /// <summary>
@@ -34,10 +34,7 @@ public sealed class PlayerInventoryComponent : Component
 		if (v != null && v.IsDead)
 			return;
 
-		var flow = MatchFlowComponent.Current;
-		if (flow != null
-		    && flow.SessionPhase != MatchSessionPhase.InMatch
-		    && flow.SessionPhase != MatchSessionPhase.LoadingArena)
+		if (!GameComponent.AreWeaponsAndInventoryUnlockedForCurrentSession())
 			return;
 
 		if (Input.Keyboard.Pressed("tab"))
