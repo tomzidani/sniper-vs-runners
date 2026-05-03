@@ -196,19 +196,45 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 			return;
 
 		_lastSeenFireFxSequence = seq;
-		ApplyPrimaryFireAnimPulse(def, weapon.FireTracerStartWorld, weapon.FireTracerEndWorld, weapon.FireTracerDirectionWorld);
+		ApplyPrimaryFireAnimPulse(def, weapon.FireTracerStartWorld, weapon.FireTracerEndWorld, weapon.FireTracerDirectionWorld, weapon.FireTracerAuthoritativeFlightSeconds);
 	}
 
 	/// <summary>
 	/// Appelé sur la machine autoritaire juste après l’incrément de <see cref="PlayerHitscanWeaponComponent.FireFxSequence"/> pour éviter un délai d’une frame avant le pulse d’anim.
 	/// Les proxies se mettent à jour via <see cref="TryConsumePrimaryFireFx"/>.
 	/// </summary>
-	public void OnAuthorityPrimaryFireFx(uint sequence, WeaponDefinition def, Vector3 tracerEndWorld, Vector3 tracerDirectionWorld)
+	public void OnAuthorityPrimaryFireFx(uint sequence, WeaponDefinition def, Vector3 tracerEndWorld, Vector3 tracerDirectionWorld, float authoritativeFlightSeconds)
 	{
 		_lastSeenFireFxSequence = sequence;
 		var weapon = Components.Get<PlayerHitscanWeaponComponent>();
 		var syncedStart = weapon != null ? weapon.FireTracerStartWorld : GameObject.WorldPosition;
-		ApplyPrimaryFireAnimPulse(def, syncedStart, tracerEndWorld, tracerDirectionWorld);
+		ApplyPrimaryFireAnimPulse(def, syncedStart, tracerEndWorld, tracerDirectionWorld, authoritativeFlightSeconds);
+		if (Networking.IsActive && authoritativeFlightSeconds > 0.0001f)
+		{
+			var ident = weapon?.ActiveWeaponIdent ?? "usp";
+			RpcPlayNetworkedWeaponTracer(syncedStart, tracerEndWorld, tracerDirectionWorld, ident, authoritativeFlightSeconds);
+		}
+	}
+
+	/// <summary>
+	/// Multijoueur : même instant sur toutes les machines pour le spawn du tracer (durée = calcul hôte).
+	/// </summary>
+	[Rpc.Broadcast( NetFlag.HostOnly )]
+	public void RpcPlayNetworkedWeaponTracer(Vector3 syncedEyeStart, Vector3 tracerEndWorld, Vector3 tracerDirectionWorld, string weaponIdentRpc, float authoritativeFlightSeconds)
+	{
+		if (!Networking.IsActive)
+			return;
+
+		var def = WeaponDefinition.Resolve(string.IsNullOrWhiteSpace(weaponIdentRpc) ? "usp" : weaponIdentRpc);
+		if (def == null)
+			return;
+
+		var pcFx = Components.Get<PlayerController>();
+		var eye = pcFx?.EyePosition ?? GameObject.WorldPosition;
+		var start = GetTracerEmissionWorld(pcFx, def, syncedEyeStart, eye);
+		var dir = tracerDirectionWorld.Length > 0.001f ? tracerDirectionWorld.Normal : (tracerEndWorld - start).Normal;
+		var flight = authoritativeFlightSeconds > 0.0001f ? (float?)authoritativeFlightSeconds : null;
+		WeaponTracerBeam.SpawnIfEnabled(Scene, start, tracerEndWorld, dir, def, flight);
 	}
 
 	void TryConsumeReloadFx(PlayerHitscanWeaponComponent weapon, WeaponDefinition def)
@@ -267,7 +293,7 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		}
 	}
 
-	void ApplyPrimaryFireAnimPulse(WeaponDefinition def, Vector3 tracerStartWorld, Vector3 tracerEndWorld, Vector3 tracerDirectionWorld)
+	void ApplyPrimaryFireAnimPulse(WeaponDefinition def, Vector3 tracerStartWorld, Vector3 tracerEndWorld, Vector3 tracerDirectionWorld, float authoritativeTracerFlightSeconds)
 	{
 		var body = CitizenBodySkinned;
 		var bodyParam = string.IsNullOrWhiteSpace(def?.BodyPrimaryFireParameterName)
@@ -298,7 +324,11 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 			var dir = tracerDirectionWorld.Length > 0.001f ? tracerDirectionWorld.Normal : (tracerEndWorld - start).Normal;
 
 			WeaponFx.PlayPrimaryFire(def, start);
-			WeaponTracerBeam.SpawnIfEnabled(Scene, start, tracerEndWorld, dir, def);
+			if (!Networking.IsActive)
+			{
+				var flight = authoritativeTracerFlightSeconds > 0.0001f ? (float?)authoritativeTracerFlightSeconds : null;
+				WeaponTracerBeam.SpawnIfEnabled(Scene, start, tracerEndWorld, dir, def, flight);
+			}
 
 			var useFp = pcFx != null && IsLocalPawn() && !pcFx.ThirdPerson && def.UseFirstPersonViewModel
 			           && _fpWeaponRoot.IsValid() && _fpWeaponVisualRoot.IsValid();
@@ -311,6 +341,12 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 	}
 
 	Vector3 ResolveTracerStartWorld(PlayerController pc, WeaponDefinition def, Vector3 syncedStart, Vector3 fallbackEye)
+		=> GetTracerEmissionWorld(pc, def, syncedStart, fallbackEye);
+
+	/// <summary>
+	/// Même règle que le tracer FX (bouche / arme / œil sync). Utilisé pour retarder les dégâts comme le vol visuel.
+	/// </summary>
+	public Vector3 GetTracerEmissionWorld(PlayerController pc, WeaponDefinition def, Vector3 syncedStart, Vector3 fallbackEye)
 	{
 		if (pc != null && IsLocalPawn() && !pc.ThirdPerson && def != null && def.UseFirstPersonViewModel && _fpWeaponVisualRoot.IsValid())
 			return _fpWeaponVisualRoot.WorldPosition;

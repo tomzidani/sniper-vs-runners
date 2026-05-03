@@ -146,7 +146,28 @@ public partial class WeaponDefinition : GameResource
 
 	// --- FX (tracers) ---
 
-	/// <summary>Durée d’affichage du faisceau (0 = désactivé).</summary>
+	/// <summary>
+	/// <see cref="TracerTrajectoryStyle.StrictHitscanRay"/> : segment droit identique au rayon hitscan sync, durée <c>distance / <see cref="TracerVisualSpeed"/></c> (bornée).<br/>
+	/// <see cref="TracerTrajectoryStyle.LegacyBezier"/> : ancienne courbe + bornes sur <see cref="TracerDrawSeconds"/>.
+	/// </summary>
+	public enum TracerTrajectoryStyle
+	{
+		StrictHitscanRay,
+		LegacyBezier
+	}
+
+	[Property, Group("FX — Tracer")]
+	public TracerTrajectoryStyle TracerTrajectory { get; set; } = TracerTrajectoryStyle.StrictHitscanRay;
+
+	/// <summary>Mode strict : plafond bas durée de vol (s). Mode legacy : ignoré.</summary>
+	[Property, Group("FX — Tracer")]
+	public float TracerFlightTimeMinSeconds { get; set; } = 0.015f;
+
+	/// <summary>Mode strict : plafond haut durée de vol (s). Mode legacy : ignoré.</summary>
+	[Property, Group("FX — Tracer")]
+	public float TracerFlightTimeMaxSeconds { get; set; } = 2.5f;
+
+	/// <summary>Mode legacy uniquement : base pour les bornes de durée (0 = tracer désactivé en legacy).</summary>
 	[Property, Group("FX — Tracer")]
 	public float TracerDrawSeconds { get; set; } = 0.075f;
 
@@ -157,13 +178,22 @@ public partial class WeaponDefinition : GameResource
 	[Property, Group("FX — Tracer")]
 	public float TracerWorldThickness { get; set; } = 0.22f;
 
-	/// <summary>Vitesse visuelle du tracer (unités/s) pour simuler le temps de vol.</summary>
+	/// <summary>
+	/// Vitesse du segment lumineux (unités monde / s). Mode strict : temps de vol ≈ <c>distance / vitesse</c> (borné min/max). Mode legacy : plancher 200 u/s pour le calcul de durée.
+	/// </summary>
 	[Property, Group("FX — Tracer")]
 	public float TracerVisualSpeed { get; set; } = 13_000f;
 
-	/// <summary>Longueur du segment lumineux qui se déplace (style balle fuselante).</summary>
+	/// <summary>Longueur monde du segment visible (traînée) le long du trajet.</summary>
 	[Property, Group("FX — Tracer")]
 	public float TracerSegmentWorldLength { get; set; } = 22f;
+
+	/// <summary>
+	/// Avec <see cref="TracerTrajectoryStyle.StrictHitscanRay"/> : retarde l’application des dégâts sur joueur à l’hôte du même délai que le temps de vol du tracer (<see cref="WeaponTracerBeam.ComputeTracerFlightSeconds"/>), pour que l’impact visuel coïncide avec le hit.<br/>
+	/// Ignoré en <see cref="TracerTrajectoryStyle.LegacyBezier"/> (dégâts instantanés ; trajectoire FX ≠ rayon hitscan).
+	/// </summary>
+	[Property, Group("FX — Tracer")]
+	public bool DelayHitscanDamageUntilTracerImpact { get; set; } = true;
 
 	// --- FX (muzzle flash) — uniquement prefab ; rendu = contenu du prefab ---
 

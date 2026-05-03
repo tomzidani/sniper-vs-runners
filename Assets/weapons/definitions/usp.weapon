@@ -1,4 +1,4 @@
-{
+﻿{
   "Ident": "usp",
   "DisplayName": "USP",
   "FireCooldownSeconds": 0.35,
@@ -33,6 +33,9 @@
   "ReloadSoundPath": "",
   "ReloadSoundVolume": 0.85,
   "ReloadHearingRange": 2400,
+  "TracerTrajectory": "StrictHitscanRay",
+  "TracerFlightTimeMinSeconds": 0.015,
+  "TracerFlightTimeMaxSeconds": 2.5,
   "TracerDrawSeconds": 2,
   "TracerColor": "1,0.88,0.35,0.92",
   "TracerWorldThickness": 0.18,
@@ -42,7 +45,7 @@
   "MuzzleFlashPersistForTuning": true,
   "MuzzleFlashFirstPersonLocalOffset": "18.448,-4.64400005,-2.38800001",
   "MuzzleFlashFirstPersonLocalAngles": "0,0,0",
-  "MuzzleFlashThirdPersonLocalOffset": "6.71500015,0.0280000009,2.37400007",
+  "MuzzleFlashThirdPersonLocalOffset": "6.64400005,0.0810000002,2.30699992",
   "MuzzleFlashThirdPersonLocalAngles": "0,0,0",
   "PrimaryModel": "models/weapons/sbox_pistol_usp/w_usp.vmdl",
   "FallbackWorldModel": null,

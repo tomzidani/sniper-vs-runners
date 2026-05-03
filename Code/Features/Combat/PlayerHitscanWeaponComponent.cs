@@ -1,6 +1,7 @@
 namespace SniperVsRunners.Features.Combat;
 
 using System;
+using System.Collections.Generic;
 using Sandbox;
 using SniperVsRunners.Components.Game;
 using SniperVsRunners.Features.GameFlow;
@@ -11,6 +12,7 @@ using SniperVsRunners.Teams;
 /// <summary>
 /// Tir hitscan : capacités issues de <see cref="WeaponDefinition"/> (ident sync côté hôte).
 /// <see cref="FireFxSequence"/> incrémenté côté hôte à chaque tir valide pour synchroniser les impulsions d’anim (3P / corps).
+/// <see cref="FireTracerAuthoritativeFlightSeconds"/> : durée de vol tracer (hôte), répliquée ; multijoueur : spawn du tracer via Rpc broadcast hôte sur le composant visuel du tireur.
 /// Munitions + rechargement : autorité hôte, <see cref="ReloadFxSequence"/> pour les anims reload.
 /// </summary>
 public partial class PlayerHitscanWeaponComponent : Component
@@ -54,6 +56,12 @@ public partial class PlayerHitscanWeaponComponent : Component
 	[Sync(SyncFlags.FromHost)]
 	public Vector3 FireTracerStartWorld { get; set; }
 
+	/// <summary>
+	/// Durée de vol du tracer (s) calculée sur l’hôte (émission bouche/œil → impact) ; répliquée pour le FX et alignée sur le retard des dégâts différés.
+	/// </summary>
+	[Sync(SyncFlags.FromHost)]
+	public float FireTracerAuthoritativeFlightSeconds { get; set; }
+
 	string _cachedIdent;
 	WeaponDefinition _cachedDef;
 
@@ -74,11 +82,26 @@ public partial class PlayerHitscanWeaponComponent : Component
 
 	float _nextFireTime;
 
+	const int MaxPendingHitscanHits = 64;
+
+	readonly List<PendingHitscanHit> _pendingHitscanHits = new();
+
+	struct PendingHitscanHit
+	{
+		public float ApplyAtTime;
+		public GameObject VictimRoot;
+		public GameObject AttackerRoot;
+		public BodyHitZone Zone;
+		public string WeaponIdent;
+	}
+
 	/// <summary>Remplit chargeur + réserve depuis la définition active ; annule un rechargement en cours. À appeler sur l’hôte au spawn ou après changement d’arme.</summary>
 	public void HostApplyEquippedWeaponAmmo()
 	{
 		if (Networking.IsActive && !Networking.IsHost)
 			return;
+
+		_pendingHitscanHits.Clear();
 
 		IsReloading = false;
 		ReloadEndTime = 0f;
@@ -98,7 +121,10 @@ public partial class PlayerHitscanWeaponComponent : Component
 	protected override void OnUpdate()
 	{
 		if (IsAuthorityForGameplay())
+		{
 			TickReloadAuthority();
+			TickPendingHitscanHitsAuthority();
+		}
 
 		if (IsDeadLocally())
 			return;
@@ -274,10 +300,11 @@ public partial class PlayerHitscanWeaponComponent : Component
 		var forwardBase = pcFire != null ? pcFire.EyeAngles.Forward : forward;
 		var aimDir = WeaponBallistics.ComputeFireDirection(forwardBase, def);
 
-		TryApplyPrimaryFireDamage(eyeStart, aimDir, def, out var tracerEnd);
+		TryApplyPrimaryFireDamage(eyeStart, aimDir, def, out var tracerEnd, out var flightAuth);
 		FireTracerStartWorld = eyeStart;
 		FireTracerEndWorld = tracerEnd;
 		FireTracerDirectionWorld = aimDir;
+		FireTracerAuthoritativeFlightSeconds = flightAuth;
 
 		unchecked
 		{
@@ -285,39 +312,115 @@ public partial class PlayerHitscanWeaponComponent : Component
 		}
 
 		Components.Get<PlayerCitizenWeaponVisualComponent>()
-			?.OnAuthorityPrimaryFireFx(FireFxSequence, def, tracerEnd, aimDir);
+			?.OnAuthorityPrimaryFireFx(FireFxSequence, def, tracerEnd, aimDir, flightAuth);
 
 		if (AmmoInMag == 0 && def.AutoReloadWhenEmpty)
 			TryStartReloadAsAuthority();
 	}
 
-	void TryApplyPrimaryFireDamage(Vector3 start, Vector3 forward, WeaponDefinition def, out Vector3 tracerEndWorld)
+	void TryApplyPrimaryFireDamage(Vector3 start, Vector3 forward, WeaponDefinition def, out Vector3 tracerEndWorld, out float authoritativeTracerFlightSeconds)
 	{
 		var far = start + forward * def.MaxRange;
 		tracerEndWorld = far;
+		authoritativeTracerFlightSeconds = 0f;
 
-		if (!CombatAimTrace.TryTraceDamageableTarget(
-			    Scene,
-			    GameObject,
-			    start,
-			    forward,
-			    def.MaxRange,
-			    out var trace,
-			    out var victimRoot,
-			    out var zone))
+		try
 		{
-			if (trace.Hit)
-				tracerEndWorld = trace.HitPosition;
-			return;
+			if (!CombatAimTrace.TryTraceDamageableTarget(
+				    Scene,
+				    GameObject,
+				    start,
+				    forward,
+				    def.MaxRange,
+				    out var trace,
+				    out var victimRoot,
+				    out var zone))
+			{
+				if (trace.Hit)
+					tracerEndWorld = trace.HitPosition;
+				return;
+			}
+
+			tracerEndWorld = trace.HitPosition;
+
+			var vitality = victimRoot.Components.Get<PlayerVitalityComponent>();
+			if (vitality == null || vitality.IsDead)
+				return;
+
+			if (ShouldDeferHitscanDamageForTracer(def))
+			{
+				var delay = ComputeAuthoritativeTracerFlightSeconds(start, tracerEndWorld, def);
+				EnqueueDeferredHitscanHit(victimRoot, zone, delay);
+				return;
+			}
+
+			vitality.ServerApplyHit(GameObject, ActiveWeaponIdent, zone);
 		}
+		finally
+		{
+			authoritativeTracerFlightSeconds = ComputeAuthoritativeTracerFlightSeconds(start, tracerEndWorld, def);
+		}
+	}
 
-		tracerEndWorld = trace.HitPosition;
+	float ComputeAuthoritativeTracerFlightSeconds(Vector3 syncedEyeStart, Vector3 tracerEndWorld, WeaponDefinition def)
+	{
+		var vis = Components.Get<PlayerCitizenWeaponVisualComponent>();
+		var pc = Components.Get<PlayerController>();
+		var emission = vis?.GetTracerEmissionWorld(pc, def, syncedEyeStart, syncedEyeStart) ?? syncedEyeStart;
+		if (!WeaponTracerBeam.CanSpawnTracer(emission, tracerEndWorld, def))
+			return 0f;
+		return WeaponTracerBeam.ComputeTracerFlightSeconds(emission, tracerEndWorld, def);
+	}
 
-		var vitality = victimRoot.Components.Get<PlayerVitalityComponent>();
+	static bool ShouldDeferHitscanDamageForTracer(WeaponDefinition def)
+	{
+		if (def == null || !def.DelayHitscanDamageUntilTracerImpact)
+			return false;
+		return def.TracerTrajectory == WeaponDefinition.TracerTrajectoryStyle.StrictHitscanRay;
+	}
+
+	void EnqueueDeferredHitscanHit(GameObject victimRoot, BodyHitZone zone, float delaySeconds)
+	{
+		if (_pendingHitscanHits.Count >= MaxPendingHitscanHits)
+			_pendingHitscanHits.RemoveAt(0);
+
+		_pendingHitscanHits.Add(new PendingHitscanHit
+		{
+			ApplyAtTime = Time.Now + delaySeconds,
+			VictimRoot = victimRoot,
+			AttackerRoot = GameObject,
+			Zone = zone,
+			WeaponIdent = ActiveWeaponIdent
+		});
+	}
+
+	void TickPendingHitscanHitsAuthority()
+	{
+		if (_pendingHitscanHits.Count == 0)
+			return;
+
+		var now = Time.Now;
+		for (var i = _pendingHitscanHits.Count - 1; i >= 0; i--)
+		{
+			var p = _pendingHitscanHits[i];
+			if (now < p.ApplyAtTime)
+				continue;
+
+			_pendingHitscanHits.RemoveAt(i);
+			ApplyDeferredHitscanHit(p);
+		}
+	}
+
+	void ApplyDeferredHitscanHit(PendingHitscanHit p)
+	{
+		if (!p.VictimRoot.IsValid() || !p.AttackerRoot.IsValid())
+			return;
+
+		var vitality = p.VictimRoot.Components.Get<PlayerVitalityComponent>();
 		if (vitality == null || vitality.IsDead)
 			return;
 
-		vitality.ServerApplyHit(GameObject, ActiveWeaponIdent, zone);
+		vitality.ServerApplyHit(p.AttackerRoot, p.WeaponIdent, p.Zone);
 	}
 
 	bool IsDeadLocally()
