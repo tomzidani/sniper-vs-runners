@@ -219,10 +219,13 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 	/// <summary>
 	/// Multijoueur : même instant sur toutes les machines pour le spawn du tracer (durée = calcul hôte).
 	/// </summary>
-	[Rpc.Broadcast( NetFlag.HostOnly )]
+	[Rpc.Broadcast]
 	public void RpcPlayNetworkedWeaponTracer(Vector3 syncedEyeStart, Vector3 tracerEndWorld, Vector3 tracerDirectionWorld, string weaponIdentRpc, float authoritativeFlightSeconds)
 	{
 		if (!Networking.IsActive)
+			return;
+
+		if (!Rpc.Caller.IsHost)
 			return;
 
 		var def = WeaponDefinition.Resolve(string.IsNullOrWhiteSpace(weaponIdentRpc) ? "usp" : weaponIdentRpc);

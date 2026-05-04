@@ -349,7 +349,7 @@ public partial class PlayerHitscanWeaponComponent : Component
 
 			if (ShouldDeferHitscanDamageForTracer(def))
 			{
-				var delay = ComputeAuthoritativeTracerFlightSeconds(start, tracerEndWorld, def);
+				var delay = ComputeAuthoritativeTracerFlightSeconds(start, tracerEndWorld, def, forward);
 				EnqueueDeferredHitscanHit(victimRoot, zone, delay);
 				return;
 			}
@@ -358,25 +358,27 @@ public partial class PlayerHitscanWeaponComponent : Component
 		}
 		finally
 		{
-			authoritativeTracerFlightSeconds = ComputeAuthoritativeTracerFlightSeconds(start, tracerEndWorld, def);
+			authoritativeTracerFlightSeconds = ComputeAuthoritativeTracerFlightSeconds(start, tracerEndWorld, def, forward);
 		}
 	}
 
-	float ComputeAuthoritativeTracerFlightSeconds(Vector3 syncedEyeStart, Vector3 tracerEndWorld, WeaponDefinition def)
+	float ComputeAuthoritativeTracerFlightSeconds(Vector3 syncedEyeStart, Vector3 tracerEndWorld, WeaponDefinition def, Vector3 shotForwardWorld)
 	{
 		var vis = Components.Get<PlayerCitizenWeaponVisualComponent>();
 		var pc = Components.Get<PlayerController>();
 		var emission = vis?.GetTracerEmissionWorld(pc, def, syncedEyeStart, syncedEyeStart) ?? syncedEyeStart;
 		if (!WeaponTracerBeam.CanSpawnTracer(emission, tracerEndWorld, def))
 			return 0f;
-		return WeaponTracerBeam.ComputeTracerFlightSeconds(emission, tracerEndWorld, def);
+		var dir = shotForwardWorld.Length > 0.0001f ? shotForwardWorld.Normal : (tracerEndWorld - emission).Normal;
+		return WeaponTracerBeam.ComputeTracerFlightSeconds(emission, tracerEndWorld, dir, def);
 	}
 
 	static bool ShouldDeferHitscanDamageForTracer(WeaponDefinition def)
 	{
 		if (def == null || !def.DelayHitscanDamageUntilTracerImpact)
 			return false;
-		return def.TracerTrajectory == WeaponDefinition.TracerTrajectoryStyle.StrictHitscanRay;
+		return def.TracerTrajectory is WeaponDefinition.TracerTrajectoryStyle.StrictHitscanRay
+		       or WeaponDefinition.TracerTrajectoryStyle.StrictHitscanDropArc;
 	}
 
 	void EnqueueDeferredHitscanHit(GameObject victimRoot, BodyHitZone zone, float delaySeconds)

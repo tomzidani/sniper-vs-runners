@@ -148,11 +148,13 @@ public partial class WeaponDefinition : GameResource
 
 	/// <summary>
 	/// <see cref="TracerTrajectoryStyle.StrictHitscanRay"/> : segment droit identique au rayon hitscan sync, durée <c>distance / <see cref="TracerVisualSpeed"/></c> (bornée).<br/>
+	/// <see cref="TracerTrajectoryStyle.StrictHitscanDropArc"/> : même départ et même impact que le hitscan ; trajectoire courbe (chute visuelle) ; durée = longueur d’arc / <see cref="TracerVisualSpeed"/>.<br/>
 	/// <see cref="TracerTrajectoryStyle.LegacyBezier"/> : ancienne courbe + bornes sur <see cref="TracerDrawSeconds"/>.
 	/// </summary>
 	public enum TracerTrajectoryStyle
 	{
 		StrictHitscanRay,
+		StrictHitscanDropArc,
 		LegacyBezier
 	}
 
@@ -174,9 +176,29 @@ public partial class WeaponDefinition : GameResource
 	[Property, Group("FX — Tracer")]
 	public Color TracerColor { get; set; } = new Color(1f, 0.92f, 0.35f, 0.9f);
 
-	/// <summary>Épaisseur monde du faisceau (modèle dev/box étiré).</summary>
+	/// <summary>Épaisseur du trait sur l’axe local <strong>Y</strong> du tracer (section perpendiculaire au tir).</summary>
 	[Property, Group("FX — Tracer")]
-	public float TracerWorldThickness { get; set; } = 0.22f;
+	public float TracerWorldThickness { get; set; } = 0.08f;
+
+	/// <summary>Épaisseur sur l’axe local <strong>Z</strong>. ≤0 = identique à <see cref="TracerWorldThickness"/>.</summary>
+	[Property, Group("FX — Tracer")]
+	public float TracerWorldThicknessY { get; set; }
+
+	/// <summary>Multiplicateur HDR sur les canaux RVB de <see cref="TracerColor"/> (valeurs &gt; 1 donnent un rendu plus lumineux / bloom).</summary>
+	[Property, Group("FX — Tracer")]
+	public float TracerBrightness { get; set; } = 3f;
+
+	/// <summary>Opacité du halo (2ᵉ mesh élargi). 0 = pas de halo.</summary>
+	[Property, Group("FX — Tracer")]
+	public float TracerGlowAlpha { get; set; } = 0.28f;
+
+	/// <summary>Facteur d’élargissement du halo sur XY (local). ≤1 = désactivé même si <see cref="TracerGlowAlpha"/> &gt; 0.</summary>
+	[Property, Group("FX — Tracer")]
+	public float TracerGlowSpread { get; set; } = 1.45f;
+
+	/// <summary>Multiplicateur RVB supplémentaire sur le halo par rapport au cœur.</summary>
+	[Property, Group("FX — Tracer")]
+	public float TracerGlowBrightnessMul { get; set; } = 0.9f;
 
 	/// <summary>
 	/// Vitesse du segment lumineux (unités monde / s). Mode strict : temps de vol ≈ <c>distance / vitesse</c> (borné min/max). Mode legacy : plancher 200 u/s pour le calcul de durée.
@@ -189,7 +211,7 @@ public partial class WeaponDefinition : GameResource
 	public float TracerSegmentWorldLength { get; set; } = 22f;
 
 	/// <summary>
-	/// Avec <see cref="TracerTrajectoryStyle.StrictHitscanRay"/> : retarde l’application des dégâts sur joueur à l’hôte du même délai que le temps de vol du tracer (<see cref="WeaponTracerBeam.ComputeTracerFlightSeconds"/>), pour que l’impact visuel coïncide avec le hit.<br/>
+	/// Avec <see cref="TracerTrajectoryStyle.StrictHitscanRay"/> ou <see cref="TracerTrajectoryStyle.StrictHitscanDropArc"/> : retarde l’application des dégâts sur joueur à l’hôte du même délai que le temps de vol du tracer (<see cref="WeaponTracerBeam.ComputeTracerFlightSeconds"/>), pour que l’impact visuel coïncide avec le hit.<br/>
 	/// Ignoré en <see cref="TracerTrajectoryStyle.LegacyBezier"/> (dégâts instantanés ; trajectoire FX ≠ rayon hitscan).
 	/// </summary>
 	[Property, Group("FX — Tracer")]
