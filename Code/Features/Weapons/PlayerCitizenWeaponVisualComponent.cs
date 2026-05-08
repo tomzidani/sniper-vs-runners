@@ -78,6 +78,9 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 	float _lookAimYawInertia;
 	float _lookAimPitch;
 	float _lookAimPitchInertia;
+	bool _fpPosePreRenderPending;
+	PlayerController _fpPosePreRenderController;
+	WeaponDefinition _fpPosePreRenderDefinition;
 
 	protected override void OnStart()
 	{
@@ -88,6 +91,11 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 	{
 		DestroyFpPresentation();
 		base.OnDestroy();
+	}
+
+	protected override void OnPreRender()
+	{
+		ApplyFirstPersonPosePreRender();
 	}
 
 	protected override void OnUpdate()
@@ -101,6 +109,7 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 
 		if (vitality != null && vitality.IsDead)
 		{
+			ClearFirstPersonPosePreRenderState();
 			if (_weaponRoot.IsValid())
 				_weaponRoot.Enabled = false;
 			if (_fpWeaponRoot.IsValid())
@@ -127,7 +136,10 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		}
 
 		if (!_visualReady || weapon == null)
+		{
+			ClearFirstPersonPosePreRenderState();
 			return;
+		}
 
 		var ident = string.IsNullOrWhiteSpace(weapon.ActiveWeaponIdent) ? "usp" : weapon.ActiveWeaponIdent.Trim();
 		var def = WeaponDefinition.Resolve(ident);
@@ -144,7 +156,10 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		}
 
 		if (!_anim.IsValid())
+		{
+			ClearFirstPersonPosePreRenderState();
 			return;
+		}
 
 		var team = combat?.Team ?? TeamTypes.Spectators;
 		if (team != _lastCombatTeam)
@@ -172,7 +187,10 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		ApplyHoldType(def, ident, combat);
 
 		if (pc == null)
+		{
+			ClearFirstPersonPosePreRenderState();
 			return;
+		}
 
 		var activeDef = weapon.ResolveActiveDefinition();
 		UpdateFirstPersonPresentation(pc, activeDef, combat);
@@ -798,6 +816,8 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 
 	void UpdateFirstPersonPresentation(PlayerController pc, WeaponDefinition def, PlayerCombatInfoComponent combat)
 	{
+		ClearFirstPersonPosePreRenderState();
+
 		if (!_weaponSkinned.IsValid())
 			return;
 
@@ -831,6 +851,33 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		var hideWorld = def.FirstPersonHideWorldModelWhenLocalFirstPerson;
 		_weaponSkinned.Enabled = !hideWorld;
 
+		_fpPosePreRenderPending = true;
+		_fpPosePreRenderController = pc;
+		_fpPosePreRenderDefinition = def;
+		_fpWeaponRoot.Enabled = true;
+		ApplyFirstPersonVisualLocalTransform(def);
+	}
+
+	void ClearFirstPersonPosePreRenderState()
+	{
+		_fpPosePreRenderPending = false;
+		_fpPosePreRenderController = null;
+		_fpPosePreRenderDefinition = null;
+	}
+
+	void ApplyFirstPersonPosePreRender()
+	{
+		if (!_fpPosePreRenderPending)
+			return;
+
+		var pc = _fpPosePreRenderController;
+		var def = _fpPosePreRenderDefinition;
+		if (pc == null || def == null || !_fpWeaponRoot.IsValid() || !_fpWeaponRoot.Enabled)
+			return;
+
+		if (pc.ThirdPerson || !def.UseFirstPersonViewModel || ForceDisableFirstPersonViewmodel)
+			return;
+
 		var rot = pc.EyeAngles.ToRotation();
 		var lp = def.FirstPersonLocalPosition;
 		var localRot = def.FirstPersonLocalAngles.ToRotation();
@@ -844,8 +891,6 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		_fpWeaponRoot.WorldPosition = worldPos;
 		_fpWeaponRoot.WorldRotation = worldRot;
 		_fpWeaponRoot.WorldScale = Vector3.One * sc;
-		_fpWeaponRoot.Enabled = true;
-		ApplyFirstPersonVisualLocalTransform(def);
 	}
 
 	void ResetFirstPersonLookSwayState()

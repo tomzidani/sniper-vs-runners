@@ -15,7 +15,7 @@ public sealed class PlayerAimCameraFovComponent : Component
 	bool _hasDefaultNear;
 	CameraComponent _activeCamera;
 
-	protected override void OnUpdate()
+	protected override void OnPreRender()
 	{
 		if (!IsLocalPawn())
 			return;
