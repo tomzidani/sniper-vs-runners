@@ -298,7 +298,8 @@ public partial class PlayerHitscanWeaponComponent : Component
 		var pcFire = Components.Get<PlayerController>();
 		var eyeStart = pcFire != null ? pcFire.EyePosition : start;
 		var forwardBase = pcFire != null ? pcFire.EyeAngles.Forward : forward;
-		var aimDir = WeaponBallistics.ComputeFireDirection(forwardBase, def);
+		var spreadMul = ResolveSpreadMultiplier(def);
+		var aimDir = WeaponBallistics.ComputeFireDirection(forwardBase, def, spreadMul);
 
 		TryApplyPrimaryFireDamage(eyeStart, aimDir, def, out var tracerEnd, out var flightAuth);
 		FireTracerStartWorld = eyeStart;
@@ -316,6 +317,18 @@ public partial class PlayerHitscanWeaponComponent : Component
 
 		if (AmmoInMag == 0 && def.AutoReloadWhenEmpty)
 			TryStartReloadAsAuthority();
+	}
+
+	float ResolveSpreadMultiplier(WeaponDefinition def)
+	{
+		if (def == null || !def.AimEnabled)
+			return 1f;
+
+		var aim = Components.Get<PlayerWeaponAimComponent>();
+		if (aim == null || !aim.IsAimingForDefinition(def))
+			return 1f;
+
+		return Math.Max(0f, def.AimSpreadMultiplier);
 	}
 
 	void TryApplyPrimaryFireDamage(Vector3 start, Vector3 forward, WeaponDefinition def, out Vector3 tracerEndWorld, out float authoritativeTracerFlightSeconds)

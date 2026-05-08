@@ -11,6 +11,8 @@ public sealed class PlayerAimCameraFovComponent : Component
 {
 	float _defaultFov = 60f;
 	bool _hasDefaultFov;
+	float _defaultNear = 5f;
+	bool _hasDefaultNear;
 	CameraComponent _activeCamera;
 
 	protected override void OnUpdate()
@@ -40,12 +42,25 @@ public sealed class PlayerAimCameraFovComponent : Component
 			_defaultFov = camActive.FieldOfView;
 			_hasDefaultFov = true;
 		}
+		if (!_hasDefaultNear)
+		{
+			_defaultNear = camActive.ZNear;
+			_hasDefaultNear = true;
+		}
 
 		var canZoom = def != null && def.AimEnabled && def.AimFovDegrees > 1f;
 		var targetFov = canZoom
 			? _defaultFov + (def.AimFovDegrees - _defaultFov) * aimAlpha
 			: _defaultFov;
 		camActive.FieldOfView = targetFov;
+
+		// Réduit le near clip en ADS pour éviter de voir l'intérieur du viewmodel
+		// pendant la transition de FOV (clipping des meshes très proches caméra).
+		var nearAim = Math.Max(0.5f, _defaultNear * 0.35f);
+		var targetNear = canZoom
+			? _defaultNear + (nearAim - _defaultNear) * aimAlpha
+			: _defaultNear;
+		camActive.ZNear = targetNear;
 	}
 
 	void TryRestoreDefaultFov()
@@ -54,6 +69,8 @@ public sealed class PlayerAimCameraFovComponent : Component
 			return;
 
 		_activeCamera.FieldOfView = _defaultFov;
+		if (_hasDefaultNear)
+			_activeCamera.ZNear = _defaultNear;
 	}
 
 	CameraComponent ResolveStableCamera()

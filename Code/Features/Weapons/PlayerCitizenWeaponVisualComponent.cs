@@ -72,6 +72,12 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 	bool _bodyWeaponGraphDeployPrimed;
 	uint _lastSeenFireFxSequence;
 	uint _lastSeenReloadFxSequence;
+	bool _hasLastEyeAngles;
+	Angles _lastEyeAngles;
+	float _lookAimYaw;
+	float _lookAimYawInertia;
+	float _lookAimPitch;
+	float _lookAimPitchInertia;
 
 	protected override void OnStart()
 	{
@@ -173,15 +179,22 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 
 		var bodyRenderer = CitizenBodySkinned;
 		if (activeDef != null
-		    && activeDef.DriveCitizenBodyAnimGraph
-		    && bodyRenderer != null
-		    && bodyRenderer.IsValid()
-		    && bodyRenderer.UseAnimGraph)
-			UpdateCitizenBodyWeaponAnimGraph(bodyRenderer, pc, activeDef);
+			&& activeDef.DriveCitizenBodyAnimGraph
+			&& bodyRenderer != null
+			&& bodyRenderer.IsValid()
+			&& bodyRenderer.UseAnimGraph)
+			UpdateCitizenBodyWeaponAnimGraph(bodyRenderer, pc, activeDef, weapon);
 
 		var animTarget = GetActiveFpSkinnedForAnimGraph(pc, activeDef);
 		if (animTarget.IsValid() && activeDef != null && animTarget.UseAnimGraph && ShouldDriveWeaponAnimGraph(animTarget, activeDef, pc))
-			UpdateCitizenFpWeaponAnimGraph(animTarget, pc, activeDef);
+			UpdateCitizenFpWeaponAnimGraph(animTarget, pc, activeDef, weapon);
+
+		if (activeDef != null
+			&& activeDef.DriveWorldWeaponMagazineEmptyParameter
+			&& _weaponSkinned.IsValid()
+			&& _weaponSkinned.UseAnimGraph
+			&& weapon != null)
+			ApplyWorldWeaponMagazineEmptyParameters(_weaponSkinned.Parameters, activeDef, weapon);
 	}
 
 	SkinnedModelRenderer CitizenBodySkinned => _bodySkinned != null && _bodySkinned.IsValid() ? _bodySkinned : _anim?.Target;
@@ -269,7 +282,7 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 
 		var body = CitizenBodySkinned;
 		if (def.DriveBodyReloadParameter
-		    && body != null && body.IsValid() && body.UseAnimGraph)
+			&& body != null && body.IsValid() && body.UseAnimGraph)
 		{
 			var bodyParam = string.IsNullOrWhiteSpace(def.BodyReloadParameterName)
 				? "b_reload"
@@ -278,8 +291,8 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		}
 
 		if (def.DriveWorldWeaponReloadParameter
-		    && _weaponSkinned.IsValid()
-		    && _weaponSkinned.UseAnimGraph)
+			&& _weaponSkinned.IsValid()
+			&& _weaponSkinned.UseAnimGraph)
 		{
 			var wParam = string.IsNullOrWhiteSpace(def.WorldWeaponReloadParameterName)
 				? "b_reload"
@@ -307,9 +320,9 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 			body.Parameters.Set(bodyParam, true);
 
 		if (def != null
-		    && def.DriveWorldWeaponPrimaryFireParameter
-		    && _weaponSkinned.IsValid()
-		    && _weaponSkinned.UseAnimGraph)
+			&& def.DriveWorldWeaponPrimaryFireParameter
+			&& _weaponSkinned.IsValid()
+			&& _weaponSkinned.UseAnimGraph)
 		{
 			var wParam = string.IsNullOrWhiteSpace(def.WorldWeaponPrimaryFireParameterName)
 				? "b_attack"
@@ -334,12 +347,12 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 			}
 
 			var useFp = pcFx != null && IsLocalPawn() && !pcFx.ThirdPerson && def.UseFirstPersonViewModel
-			           && _fpWeaponRoot.IsValid() && _fpWeaponVisualRoot.IsValid();
-			var follow = useFp ? _fpWeaponRoot : (_weaponRoot.IsValid() ? _weaponRoot : null);
-			var basis = useFp ? _fpWeaponVisualRoot : (_weaponVisualRoot.IsValid() ? _weaponVisualRoot : null);
-			var localPos = useFp ? def.MuzzleFlashFirstPersonLocalOffset : def.MuzzleFlashThirdPersonLocalOffset;
+					   && _fpWeaponRoot.IsValid() && _fpWeaponVisualRoot.IsValid();
+			var follow = useFp ? _fpWeaponVisualRoot : (_weaponVisualRoot.IsValid() ? _weaponVisualRoot : (_weaponRoot.IsValid() ? _weaponRoot : null));
 			var localAng = useFp ? def.MuzzleFlashFirstPersonLocalAngles : def.MuzzleFlashThirdPersonLocalAngles;
-			WeaponMuzzleFlashFx.SpawnIfEnabled(Scene, def, follow, basis, localPos, localAng, dir, start);
+			var boneSkinned = useFp ? (_fpWeaponSkinned.IsValid() ? _fpWeaponSkinned : null) : (_weaponSkinned.IsValid() ? _weaponSkinned : null);
+			var boneName = useFp ? def.MuzzleFlashFirstPersonFollowBoneName : def.MuzzleFlashThirdPersonFollowBoneName;
+			WeaponMuzzleFlashFx.SpawnIfEnabled(Scene, def, follow, localAng, boneSkinned, boneName);
 		}
 	}
 
@@ -450,25 +463,154 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		p.Set("b_deploy_skip", true);
 	}
 
-	void UpdateCitizenBodyWeaponAnimGraph(SkinnedModelRenderer body, PlayerController pc, WeaponDefinition def)
+	void UpdateCitizenBodyWeaponAnimGraph(SkinnedModelRenderer body, PlayerController pc, WeaponDefinition def, PlayerHitscanWeaponComponent weapon)
 	{
 		if (!body.IsValid() || pc == null || def == null)
 			return;
 
 		var p = body.Parameters;
 		ApplyCitizenStyleAnimGraphLocomotion(p, pc, def);
+		ApplyBodyAimAnimParameters(p, def);
+		ApplyBodyMagazineEmptyParameters(p, def, weapon);
 		TryPrimeWeaponDeployOnGraph(p, ref _bodyWeaponGraphDeployPrimed);
 	}
 
-	void UpdateCitizenFpWeaponAnimGraph(SkinnedModelRenderer skinned, PlayerController pc, WeaponDefinition def)
+	bool ResolveBodyIsAiming(WeaponDefinition def)
+	{
+		if (def == null || !def.AimEnabled)
+			return false;
+
+		var aim = Components.Get<PlayerWeaponAimComponent>();
+		if (aim == null)
+			return false;
+
+		return aim.IsAimingForDefinition(def);
+	}
+
+	void UpdateCitizenFpWeaponAnimGraph(SkinnedModelRenderer skinned, PlayerController pc, WeaponDefinition def, PlayerHitscanWeaponComponent weapon)
 	{
 		if (!skinned.IsValid())
 			return;
 
 		var p = skinned.Parameters;
 		ApplyCitizenStyleAnimGraphLocomotion(p, pc, def);
+		ApplyFirstPersonLookSwayParameters(p, pc);
+		ApplyFirstPersonAimAnimParameters(p, def);
+		ApplyFirstPersonMagazineEmptyParameters(p, def, weapon);
 
 		TryPrimeWeaponDeployOnGraph(p, ref _fpGraphPrimed);
+	}
+
+	void ApplyFirstPersonLookSwayParameters(SkinnedModelRenderer.ParameterAccessor parameters, PlayerController pc)
+	{
+		if (pc == null)
+			return;
+
+		var eye = pc.EyeAngles;
+		if (!_hasLastEyeAngles)
+		{
+			_hasLastEyeAngles = true;
+			_lastEyeAngles = eye;
+			_lookAimYaw = 0f;
+			_lookAimYawInertia = 0f;
+			_lookAimPitch = 0f;
+			_lookAimPitchInertia = 0f;
+		}
+
+		var yawDelta = DeltaAngleDegrees(eye.yaw, _lastEyeAngles.yaw);
+		var pitchDelta = DeltaAngleDegrees(eye.pitch, _lastEyeAngles.pitch);
+		_lastEyeAngles = eye;
+
+		var yawTarget = Math.Clamp(-yawDelta * 9f, -28f, 28f);
+		var pitchTarget = Math.Clamp(pitchDelta * 9f, -28f, 28f);
+
+		_lookAimYaw = Damp(_lookAimYaw, yawTarget, 28f);
+		_lookAimPitch = Damp(_lookAimPitch, pitchTarget, 28f);
+		_lookAimYawInertia = Damp(_lookAimYawInertia, yawTarget, 10f);
+		_lookAimPitchInertia = Damp(_lookAimPitchInertia, pitchTarget, 10f);
+
+		parameters.Set("aim_yaw", _lookAimYaw);
+		parameters.Set("aim_pitch", _lookAimPitch);
+		parameters.Set("aim_yaw_inertia", _lookAimYawInertia);
+		parameters.Set("aim_pitch_inertia", _lookAimPitchInertia);
+	}
+
+	void ApplyBodyAimAnimParameters(SkinnedModelRenderer.ParameterAccessor parameters, WeaponDefinition def)
+	{
+		if (def == null || !def.DriveBodyAimParameter)
+			return;
+
+		var isAiming = ResolveBodyIsAiming(def);
+		var aimParam = string.IsNullOrWhiteSpace(def.BodyAimParameterName)
+			? "b_aim"
+			: def.BodyAimParameterName.Trim();
+		parameters.Set(aimParam, isAiming);
+	}
+
+	void ApplyFirstPersonAimAnimParameters(SkinnedModelRenderer.ParameterAccessor parameters, WeaponDefinition def)
+	{
+		if (def == null || !def.AimEnabled)
+			return;
+
+		var isAiming = ResolveBodyIsAiming(def);
+		if (def.DriveFirstPersonAimParameter)
+		{
+			var aimParam = string.IsNullOrWhiteSpace(def.FirstPersonAimParameterName)
+				? "b_aim"
+				: def.FirstPersonAimParameterName.Trim();
+			parameters.Set(aimParam, isAiming);
+		}
+
+		if (def.DriveFirstPersonIronsightsParameter)
+		{
+			var ironsightsParam = string.IsNullOrWhiteSpace(def.FirstPersonIronsightsParameterName)
+				? "ironsights"
+				: def.FirstPersonIronsightsParameterName.Trim();
+			var ironsightsValue = isAiming ? def.FirstPersonIronsightsEnabledValue : def.FirstPersonIronsightsDisabledValue;
+			parameters.Set(ironsightsParam, ironsightsValue);
+		}
+
+		if (def.DriveFirstPersonAimSpeedParameter)
+		{
+			var speedParam = string.IsNullOrWhiteSpace(def.FirstPersonAimSpeedParameterName)
+				? "speed_ironsights"
+				: def.FirstPersonAimSpeedParameterName.Trim();
+			var aimSpeed = 1f / Math.Max(0.01f, def.AimTransitionInSeconds);
+			parameters.Set(speedParam, aimSpeed);
+		}
+	}
+
+	void ApplyBodyMagazineEmptyParameters(SkinnedModelRenderer.ParameterAccessor parameters, WeaponDefinition def, PlayerHitscanWeaponComponent weapon)
+	{
+		if (def == null || weapon == null || !def.DriveBodyMagazineEmptyParameter)
+			return;
+
+		var param = string.IsNullOrWhiteSpace(def.BodyMagazineEmptyParameterName)
+			? "b_empty"
+			: def.BodyMagazineEmptyParameterName.Trim();
+		parameters.Set(param, weapon.AmmoInMag <= 0);
+	}
+
+	void ApplyFirstPersonMagazineEmptyParameters(SkinnedModelRenderer.ParameterAccessor parameters, WeaponDefinition def, PlayerHitscanWeaponComponent weapon)
+	{
+		if (def == null || weapon == null || !def.DriveFirstPersonMagazineEmptyParameter)
+			return;
+
+		var param = string.IsNullOrWhiteSpace(def.FirstPersonMagazineEmptyParameterName)
+			? "b_empty"
+			: def.FirstPersonMagazineEmptyParameterName.Trim();
+		parameters.Set(param, weapon.AmmoInMag <= 0);
+	}
+
+	void ApplyWorldWeaponMagazineEmptyParameters(SkinnedModelRenderer.ParameterAccessor parameters, WeaponDefinition def, PlayerHitscanWeaponComponent weapon)
+	{
+		if (def == null || weapon == null || !def.DriveWorldWeaponMagazineEmptyParameter)
+			return;
+
+		var param = string.IsNullOrWhiteSpace(def.WorldWeaponMagazineEmptyParameterName)
+			? "b_empty"
+			: def.WorldWeaponMagazineEmptyParameterName.Trim();
+		parameters.Set(param, weapon.AmmoInMag <= 0);
 	}
 
 	/// <summary>
@@ -478,7 +620,7 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 	bool ShouldDriveWeaponAnimGraph(SkinnedModelRenderer animTarget, WeaponDefinition def, PlayerController pc)
 	{
 		if (!def.UseFirstPersonViewModel || !IsLocalPawn() || pc == null || pc.ThirdPerson
-		    || !_fpWeaponSkinned.IsValid() || animTarget != _fpWeaponSkinned)
+			|| !_fpWeaponSkinned.IsValid() || animTarget != _fpWeaponSkinned)
 			return def.UseCitizenFpAnimParameters;
 
 		return def.FirstPersonDriveAnimGraphParameters || def.UseCitizenFpAnimParameters;
@@ -666,13 +808,14 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		{
 			if (_fpWeaponRoot.IsValid())
 				_fpWeaponRoot.Enabled = false;
+			ResetFirstPersonLookSwayState();
 			_weaponSkinned.Enabled = _weaponRoot.IsValid() && _weaponRoot.Enabled;
 			return;
 		}
 
 		var fpOk = def != null
-		           && def.UseFirstPersonViewModel
-		           && _fpWeaponSkinned.Model.IsValid;
+				   && def.UseFirstPersonViewModel
+				   && _fpWeaponSkinned.Model.IsValid;
 
 		var firstPerson = !pc.ThirdPerson;
 		var showFp = fpOk && firstPerson;
@@ -680,6 +823,7 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		if (!showFp)
 		{
 			_fpWeaponRoot.Enabled = false;
+			ResetFirstPersonLookSwayState();
 			_weaponSkinned.Enabled = _weaponRoot.IsValid() && _weaponRoot.Enabled;
 			return;
 		}
@@ -689,8 +833,9 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 
 		var rot = pc.EyeAngles.ToRotation();
 		var lp = def.FirstPersonLocalPosition;
+		var localRot = def.FirstPersonLocalAngles.ToRotation();
 		var worldPos = pc.EyePosition + rot.Right * lp.x + rot.Up * lp.y + rot.Forward * lp.z;
-		var worldRot = rot * def.FirstPersonLocalAngles.ToRotation();
+		var worldRot = rot * localRot;
 
 		var sc = def.FirstPersonUniformScale;
 		if (float.IsNaN(sc) || float.IsInfinity(sc) || sc <= 0f)
@@ -701,6 +846,31 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		_fpWeaponRoot.WorldScale = Vector3.One * sc;
 		_fpWeaponRoot.Enabled = true;
 		ApplyFirstPersonVisualLocalTransform(def);
+	}
+
+	void ResetFirstPersonLookSwayState()
+	{
+		_hasLastEyeAngles = false;
+		_lookAimYaw = 0f;
+		_lookAimYawInertia = 0f;
+		_lookAimPitch = 0f;
+		_lookAimPitchInertia = 0f;
+	}
+
+	static float Damp(float current, float target, float speed)
+	{
+		var t = Math.Clamp(Time.Delta * speed, 0f, 1f);
+		return current + (target - current) * t;
+	}
+
+	static float DeltaAngleDegrees(float current, float previous)
+	{
+		var delta = current - previous;
+		while (delta > 180f)
+			delta -= 360f;
+		while (delta < -180f)
+			delta += 360f;
+		return delta;
 	}
 
 	SkinnedModelRenderer GetActiveFpSkinnedForAnimGraph(PlayerController pc, WeaponDefinition def)
@@ -787,8 +957,8 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 				useAnimGraph = def.UseAnimGraphOnPrimary;
 
 			if (primary.IsValid
-			    && !string.IsNullOrWhiteSpace(def.FallbackWorldModel)
-			    && IsLikelyFirstPersonViewModelPath(def.PrimaryModel))
+				&& !string.IsNullOrWhiteSpace(def.FallbackWorldModel)
+				&& IsLikelyFirstPersonViewModelPath(def.PrimaryModel))
 			{
 				var world = Model.Load(WeaponDefinition.ToRuntimeModelPath(def.FallbackWorldModel));
 				if (world.IsValid)
@@ -932,8 +1102,8 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 
 		var id = weaponIdent.Trim();
 		if (id.Equals("m700", StringComparison.OrdinalIgnoreCase)
-		    || id.Contains("m700", StringComparison.OrdinalIgnoreCase)
-		    || id.Contains("sniper", StringComparison.OrdinalIgnoreCase))
+			|| id.Contains("m700", StringComparison.OrdinalIgnoreCase)
+			|| id.Contains("sniper", StringComparison.OrdinalIgnoreCase))
 		{
 			heldPos = FallbackM700HeldPos;
 			heldRot = FallbackM700HeldAng.ToRotation();
@@ -1004,7 +1174,7 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 		var slash = s.LastIndexOf('/');
 		var file = slash >= 0 ? s[(slash + 1)..] : s;
 		return file.StartsWith("v_", StringComparison.OrdinalIgnoreCase)
-		       || s.Contains("/v_", StringComparison.OrdinalIgnoreCase);
+			   || s.Contains("/v_", StringComparison.OrdinalIgnoreCase);
 	}
 
 	static bool TryApplyHardcodedWeaponModel(
@@ -1025,8 +1195,8 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 
 		var id = weaponIdent.Trim();
 		if (id.Equals("m700", StringComparison.OrdinalIgnoreCase)
-		    || id.Contains("m700", StringComparison.OrdinalIgnoreCase)
-		    || id.Contains("sniper", StringComparison.OrdinalIgnoreCase))
+			|| id.Contains("m700", StringComparison.OrdinalIgnoreCase)
+			|| id.Contains("sniper", StringComparison.OrdinalIgnoreCase))
 		{
 			model = Model.Load(FallbackM700World);
 			if (!model.IsValid)
@@ -1169,8 +1339,8 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 			_anim.HoldType = CitizenAnimationHelper.HoldTypes.Pistol;
 
 		var boneFollow = SyncWorldHeldWeaponToHandBone
-		                 && _weaponRoot.IsValid()
-		                 && TryResolveRightHandBoneTransform(def, out _);
+						 && _weaponRoot.IsValid()
+						 && TryResolveRightHandBoneTransform(def, out _);
 		var ikOff = boneFollow && DisableRightHandIkWhenSyncedToHandBone;
 		var ikTarget = !ikOff && def != null && def.UseIkRightHandOnWeapon && _weaponRoot.IsValid()
 			? _weaponRoot
@@ -1182,8 +1352,8 @@ public sealed class PlayerCitizenWeaponVisualComponent : Component
 	{
 		var id = weaponIdent.Trim();
 		return id.Equals("m700", StringComparison.OrdinalIgnoreCase)
-		       || id.Contains("m700", StringComparison.OrdinalIgnoreCase)
-		       || id.Contains("sniper", StringComparison.OrdinalIgnoreCase);
+			   || id.Contains("m700", StringComparison.OrdinalIgnoreCase)
+			   || id.Contains("sniper", StringComparison.OrdinalIgnoreCase);
 	}
 
 	static bool IsLocalPawn(GameObject go)

@@ -21,6 +21,11 @@ public sealed class PlayerWeaponAimComponent : Component
 	bool _localDesiredAim;
 	bool _lastSentAim;
 
+	float _adsBlendFrom;
+	float _adsBlendTo = -1f;
+	float _adsBlendElapsed;
+	float _adsBlendDuration = 0.12f;
+
 	protected override void OnUpdate()
 	{
 		var weapon = Components.Get<PlayerHitscanWeaponComponent>();
@@ -94,16 +99,32 @@ public sealed class PlayerWeaponAimComponent : Component
 
 		var inSeconds = Math.Max(0.01f, def?.AimTransitionInSeconds ?? 0.12f);
 		var outSeconds = Math.Max(0.01f, def?.AimTransitionOutSeconds ?? 0.1f);
+		var bx1 = def?.AimTransitionBezierX1 ?? 0.25f;
+		var by1 = def?.AimTransitionBezierY1 ?? 0.1f;
+		var bx2 = def?.AimTransitionBezierX2 ?? 0.25f;
+		var by2 = def?.AimTransitionBezierY2 ?? 1f;
 
-		var current = AimAlphaVisual;
-		if (Math.Abs(target - current) < 0.0001f)
+		if (_adsBlendTo < 0f || Math.Abs(target - _adsBlendTo) > 0.0001f)
+		{
+			_adsBlendFrom = AimAlphaVisual;
+			_adsBlendTo = target;
+			_adsBlendElapsed = 0f;
+			_adsBlendDuration = target > _adsBlendFrom ? inSeconds : outSeconds;
+		}
+
+		if (Math.Abs(_adsBlendFrom - _adsBlendTo) < 0.0001f)
 		{
 			AimAlphaVisual = target;
 			return;
 		}
 
-		var speed = target > current ? (1f / inSeconds) : (1f / outSeconds);
-		AimAlphaVisual = Math.Clamp(current + Time.Delta * speed * MathF.Sign(target - current), 0f, 1f);
+		_adsBlendElapsed += Time.Delta;
+		var linearT = Math.Clamp(_adsBlendElapsed / _adsBlendDuration, 0f, 1f);
+		var easedT = CubicBezierEasing.Sample(linearT, bx1, by1, bx2, by2);
+		AimAlphaVisual = Math.Clamp(_adsBlendFrom + (_adsBlendTo - _adsBlendFrom) * easedT, 0f, 1f);
+
+		if (linearT >= 1f - 1e-5f)
+			AimAlphaVisual = target;
 	}
 
 	bool ResolveVisualIsAiming(WeaponDefinition def, bool canAim)

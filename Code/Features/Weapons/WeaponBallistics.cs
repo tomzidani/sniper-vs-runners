@@ -10,11 +10,18 @@ public static class WeaponBallistics
 {
 	/// <summary>Tir réel : cône aléatoire puis chute selon <see cref="WeaponDefinition.BulletDropIntensity"/>.</summary>
 	public static Vector3 ComputeFireDirection(Vector3 forwardWorld, WeaponDefinition def)
+		=> ComputeFireDirection(forwardWorld, def, 1f);
+
+	/// <summary>
+	/// Tir réel : cône aléatoire (optionnellement multiplié), puis chute selon <see cref="WeaponDefinition.BulletDropIntensity"/>.
+	/// </summary>
+	public static Vector3 ComputeFireDirection(Vector3 forwardWorld, WeaponDefinition def, float spreadMultiplier)
 	{
 		if (def == null)
 			return forwardWorld.Normal;
 
-		var f = WeaponSpread.ApplyCone(forwardWorld, def.SpreadHalfAngleDegrees);
+		var spread = Math.Max(0f, def.SpreadHalfAngleDegrees * Math.Max(0f, spreadMultiplier));
+		var f = WeaponSpread.ApplyCone(forwardWorld, spread);
 		return ApplyBulletDrop(f, def);
 	}
 

@@ -47,6 +47,8 @@ public sealed class SpawnService
         combatInfo.Team = player.CurrentTeam;
 
         var weapon = pawn.Components.GetOrCreate<PlayerHitscanWeaponComponent>();
+        pawn.Components.GetOrCreate<PlayerWeaponAimComponent>();
+        pawn.Components.GetOrCreate<PlayerAimCameraFovComponent>();
         var session = GameComponent.Session;
         var forcePistol = session?.DevForceEveryonePistol == true;
         weapon.ActiveWeaponIdent = WeaponSpawnIds.ResolvePrimaryIdent(forcePistol, player.CurrentTeam, session);
@@ -62,6 +64,7 @@ public sealed class SpawnService
         pawn.Components.GetOrCreate<ItemWheelHud>();
         pawn.Components.GetOrCreate<PlayerFlashHud>();
         pawn.Components.GetOrCreate<PlayerWeaponAmmoHud>();
+        pawn.Components.GetOrCreate<PlayerCrosshairHud>();
 
         pawn.NetworkSpawn(player.Connection);
         player.Pawn = pawn;

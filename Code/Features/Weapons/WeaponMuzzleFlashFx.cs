@@ -6,7 +6,7 @@ using Sandbox;
 
 /// <summary>
 /// Flash de bouche : clone du prefab <strong>enfant direct</strong> de <c>HeldWeapon</c> (3P) ou <c>FirstPersonHeldWeapon</c> (1P),
-/// avec offsets définis dans l’espace du <c>HeldVisual</c> (mesh). Les particules sont forcées en espace local pour suivre le mouvement.
+/// en mode bone-only (os obligatoire). Les particules sont forcées en espace local pour suivre le mouvement.
 /// </summary>
 public static class WeaponMuzzleFlashFx
 {
@@ -15,21 +15,16 @@ public static class WeaponMuzzleFlashFx
 	const string MuzzleFlashParticleSpriteResourcePath = "textures/fx/muzzle-flash/muzzle-flash.sprite";
 
 	/// <param name="followParent">
-	/// <c>HeldWeapon</c> (monde) ou <c>FirstPersonHeldWeapon</c> (1P) : transform mis à jour chaque frame (main / tête).
+	/// <c>HeldWeapon</c> / <c>HeldVisual</c> (monde ou 1P) : parent du clone ; doit suivre l’arme.
 	/// </param>
-	/// <param name="offsetBasisParent">
-	/// <c>HeldVisual</c> sous le même arbre : les offsets de la .weapon sont dans <strong>son</strong> espace local (pivot mesh / canon).
-	/// Si null, les offsets sont lus dans l’espace de <paramref name="followParent"/>.
-	/// </param>
+	/// <param name="boneSource">Squelette qui fournit l’os de bouche (souvent le renderer du mesh arme).</param>
 	public static void SpawnIfEnabled(
 		Scene scene,
 		WeaponDefinition def,
 		GameObject followParent,
-		GameObject offsetBasisParent,
-		Vector3 visualLocalOffset,
 		Angles visualLocalAngles,
-		Vector3 shotForwardWorld,
-		Vector3 worldFallbackPosition)
+		SkinnedModelRenderer boneSource = null,
+		string followBoneName = null)
 	{
 		if (scene == null || def == null)
 			return;
@@ -38,55 +33,49 @@ public static class WeaponMuzzleFlashFx
 		if (prefab.Length == 0)
 			return;
 
-		var forward = shotForwardWorld.Length > 0.001f ? shotForwardWorld.Normal : Vector3.Forward;
+		if (boneSource == null || !boneSource.IsValid() || string.IsNullOrWhiteSpace(followBoneName))
+			return;
+
+		var boneName = followBoneName.Trim();
+		if (!boneSource.TryGetBoneTransform(boneName, out var initialBone))
+			return;
+
 		SpawnPrefabFlash(
 			scene,
 			def,
 			followParent,
-			offsetBasisParent,
-			visualLocalOffset,
 			visualLocalAngles,
-			forward,
-			worldFallbackPosition,
-			prefab);
+			prefab,
+			boneSource,
+			boneName,
+			initialBone);
 	}
 
 	static void SpawnPrefabFlash(
 		Scene scene,
 		WeaponDefinition def,
 		GameObject followParent,
-		GameObject offsetBasisParent,
-		Vector3 visualLocalOffset,
 		Angles visualLocalAngles,
-		Vector3 forward,
-		Vector3 worldFallbackPosition,
-		string prefabPath)
+		string prefabPath,
+		SkinnedModelRenderer boneSource,
+		string followBoneName,
+		Transform initialBone)
 	{
 		WarmupMuzzleFlashParticleSprite();
-
-		var up = Vector3.Up;
-		if (MathF.Abs(Vector3.Dot(forward, up)) > 0.98f)
-			up = Vector3.Right;
-		var worldAim = Rotation.LookAt(forward, up);
 		var fine = visualLocalAngles.ToRotation();
-		var worldRotInst = worldAim * fine;
+		var worldPosInst = initialBone.Position;
+		var worldRotInst = initialBone.Rotation * fine;
 
 		GameObject cloneParent = null;
-		var cloneXf = new Transform(Vector3.Zero, Rotation.Identity, 1f);
+		var cloneXf = new Transform(worldPosInst, worldRotInst, 1f);
 
 		if (followParent != null && followParent.IsValid())
 		{
-			var basis = offsetBasisParent != null && offsetBasisParent.IsValid()
-				? offsetBasisParent
-				: followParent;
-			var worldPosInst = basis.WorldPosition + basis.WorldRotation * visualLocalOffset;
 			var lp = followParent.WorldRotation.Inverse * (worldPosInst - followParent.WorldPosition);
 			var lr = followParent.WorldRotation.Inverse * worldRotInst;
 			cloneXf = new Transform(lp, lr, 1f);
 			cloneParent = followParent;
 		}
-		else
-			cloneXf = new Transform(worldFallbackPosition, worldRotInst, 1f);
 
 		GameObject inst = default;
 		var tried = new List<string>();
@@ -113,6 +102,11 @@ public static class WeaponMuzzleFlashFx
 		}
 
 		FinalizeMuzzleFxInstance(inst, def);
+
+		var follow = inst.Components.Create<MuzzleFlashBoneFollowComponent>();
+		follow.Skin = boneSource;
+		follow.BoneName = followBoneName;
+		follow.FineRotation = fine;
 	}
 
 	static List<string> BuildPrefabPathCandidates(string raw)
@@ -262,6 +256,33 @@ public static class WeaponMuzzleFlashFx
 		{
 			if (Time.Now >= DestroyAtTime)
 				GameObject.Destroy();
+		}
+	}
+
+	/// <summary>Aligne le flash sur un os du viewmodel pour qu’il suive recoil / anim.</summary>
+	sealed class MuzzleFlashBoneFollowComponent : Component
+	{
+		public SkinnedModelRenderer Skin { get; set; }
+		public string BoneName { get; set; } = "";
+		public Rotation FineRotation { get; set; }
+
+		protected override void OnUpdate()
+		{
+			if (Skin == null || !Skin.IsValid() || string.IsNullOrWhiteSpace(BoneName))
+			{
+				GameObject.Enabled = false;
+				return;
+			}
+
+			if (!Skin.TryGetBoneTransform(BoneName, out var bone))
+			{
+				GameObject.Enabled = false;
+				return;
+			}
+
+			GameObject.Enabled = true;
+			GameObject.WorldPosition = bone.Position;
+			GameObject.WorldRotation = bone.Rotation * FineRotation;
 		}
 	}
 }
